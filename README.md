@@ -1,83 +1,62 @@
-# 🧠 Brain-Memory v5.0 — Cognitive Stability Architecture
-
-> **Deterministic Router + Belief System + Reflection Engine + Goal Lifecycle — 完全本地，可控演化的 Agent 长期记忆**
+<div align="center">
+  <h1>🧠 Brain Memory v5.0</h1>
+  <p><strong>Cognitive Stability Architecture for AI agents — local-first, deterministic, evolvable.</strong></p>
+  <p>Deterministic Router · Belief System · Reflection Engine · Goal Lifecycle · HyDE · Hebbian</p>
+  <p>
+    <a href="https://github.com/plusunm/brain-memory/stargazers"><img src="https://img.shields.io/github/stars/plusunm/brain-memory?style=flat-square" alt="Stars"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/plusunm/brain-memory?style=flat-square" alt="License"></a>
+    <img src="https://img.shields.io/badge/version-5.0.0-blue?style=flat-square" alt="Version">
+    <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square" alt="Python">
+    <img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey?style=flat-square" alt="Platform">
+  </p>
+</div>
 
 ---
 
-🚀 **Brain-Memory v5.0 Cognitive Stability** —— Deterministic 路由 + 信念系统 + Meta-Reflection
+## Your AI stops forgetting.
 
-你还在用简单的向量数据库给 Agent 堆垃圾记忆吗？  
-**醒醒吧！** 是时候让你的 Agent 拥有真正像人类一样的大脑了！
+**Stop re-explaining your project to AI every day.**
 
-## 🔥 突破性黑科技（领先全球）
-
-- **多层类脑记忆系统**：Episodic（生动事件）→ Semantic（核心知识）→ Procedural（可复用技能），实现真正记忆成熟与蒸馏
-- **Prefrontal 短期缓存**：模拟人类工作记忆，快速决策 + LRU 衰减
-- **Retrieval-induced Reconsolidation**：每次回忆都在动态强化和更新记忆（实验室级再巩固机制）
-- **Provenance 可解释性**：每一条召回记忆都带完整溯源链路，再也不怕「Agent 突然发疯」
-- **HyDE + Hebbian 实体动态图**：Kuzu 图数据库实时强化关联，召回精度暴击传统 RAG
-- **睡眠巩固 + Ebbinghaus 主动遗忘**：每天自动「做梦」提炼精华，主动清除噪声
-
-## 💎 专为重度玩家打造
-
-- 完美兼容已有 LanceDB 记忆（已平滑迁移 145 条）
-- OpenClaw 原生深度集成（`before_agent_start` + `agent_end` 自动注入）
-- 双通道 LLM 防崩 + APScheduler 内置夜间巩固
-- 一键导出 Markdown + 完整统计仪表盘
-
-**一句话总结**：  
-**Brain-Memory 不是插件，是给你的 Agent 植入了一整个海马体 + 新皮层！**
-
-从今天起，你的 Agent 将真正**记住你、理解你、进化你**。
-
-## 安装方式
+Brain Memory gives your agents persistent long-term memory across sessions. v5.0 adds **Cognitive Stability**: deterministic routing, belief reconciliation, meta-reflection, and goal lifecycle tracking — so memory evolves without drifting out of control.
 
 ```bash
 openclaw plugins install brain-memory
 openclaw config set plugins.slots.memory brain-memory
 ```
 
-**立即安装，体验什么叫「Agent 有了灵魂」！**
+Or clone this repo into your OpenClaw extensions directory:
 
-⭐ **强烈建议 Star + 下载后在评论区分享你的长期记忆效果**，我们一起把 OpenClaw 推向新高度！
-
-`#BrainMemory` `#类脑Agent` `#OpenClaw` `#长期记忆` `#Hebbian` `#Reconsolidation`
+```bash
+git clone https://github.com/plusunm/brain-memory.git
+cd brain-memory
+pip install -r requirements.txt
+```
 
 ---
 
-## 技术详情
+## v5.0 Highlights
 
-完全本地、Windows 优化、LanceDB + Kuzu 混合架构。
+| Module | Description |
+|--------|-------------|
+| **DeterministicRouter** | Keywords → embedding prototypes → LLM fallback (stable routing) |
+| **Dynamic Attention Field** | Working memory with half-life decay (`attention_half_life`) |
+| **Belief System** | `beliefs.json` + compatibility check on write |
+| **Reflection Engine** | `run_reflection()` → `meta` layer + identity stability score |
+| **Goal Lifecycle** | `goal_lifecycle.json` + status tracking (active/completed/…) |
+| **Cognitive Governance** | Write gate + belief conflict gate + metabolic reconciliation |
 
-### v4.0 核心创新
+Inherited from v4.x: HyDE recall, multi-hop Kuzu graph, schema layers, provenance, sleep consolidation, Ebbinghaus forgetting.
 
-- **HyDE 召回**：假设文档嵌入，缓解 query-document 空间错位
-- **三层记忆**：Episodic → Semantic → Procedural（`layer` 字段）
-- **Prefrontal 短期缓存**：LRU OrderedDict，优先命中近期对话
-- **LLM 实体抽取 + Hebbian 图强化**
-- **Reconsolidation**：检索时更新 access + 可选深度再巩固
-- **Provenance 溯源**：JSON + Kuzu PROVENANCE 边
-- **APScheduler**：内置每日 consolidate（默认 03:00）
-- **Ebbinghaus 主动遗忘**
+---
 
-### 国际对比（2026）
+## Quick Start
 
-| 系统 | 多层 | Reconsolidation | Provenance | HyDE | 本地轻量 | Hebbian |
-|------|------|-----------------|------------|------|----------|---------|
-| Mem0 | 弱 | 中 | 弱 | 无 | 高 | 中 |
-| HippoRAG | 中 | 无 | 中 | 无 | 中 | 强 |
-| Letta/MemGPT | 部分 | 弱 | 无 | 无 | 中 | 弱 |
-| **Brain-Memory v4.0** | **强** | **强** | **强** | **有** | **高** | **强** |
+### Requirements
 
-## 安装
+- Python 3.11+
+- Ollama (`nomic-embed-text`, `llama3.2` or similar)
 
-1. 解压到 OpenClaw 扩展目录：
-
-```text
-%OPENCLAW_STATE_DIR%/extensions/brain-memory/
-```
-
-2. 安装 Python 依赖并拉取模型：
+### Install (Windows)
 
 ```powershell
 cd extensions\brain-memory
@@ -85,42 +64,23 @@ scripts\install.bat
 pip install -r requirements.txt
 ollama pull nomic-embed-text
 ollama pull llama3.2:3b
-ollama serve
 ```
 
-中文用户名 Ollama 模型目录（可选）：
-
-```powershell
-set OLLAMA_MODELS=D:\ollama_models
-```
-
-## OpenClaw 启用
+### OpenClaw config
 
 ```json
 {
-  "env": {
-    "BRAIN_MEMORY_PYTHON": "C:\\Python311\\python.exe",
-    "OLLAMA_MODELS": "D:\\ollama_models"
-  },
-  "agents": {
-    "defaults": {
-      "memorySearch": { "enabled": false }
-    }
-  },
   "plugins": {
     "slots": { "memory": "brain-memory" },
-    "allow": ["brain-memory"],
     "entries": {
-      "memory-core": { "enabled": false },
       "brain-memory": {
         "enabled": true,
         "config": {
-          "ollama_host": "http://localhost:11434",
-          "embedding_model": "nomic-embed-text",
-          "llm_model": "llama3.2:3b",
-          "auto_capture": true,
-          "auto_recall": true,
-          "use_hyde": true
+          "use_hyde": true,
+          "enable_metabolic": true,
+          "write_gate_threshold": 0.45,
+          "attention_half_life": 3600,
+          "reflection_enabled": true
         }
       }
     }
@@ -128,22 +88,72 @@ set OLLAMA_MODELS=D:\ollama_models
 }
 ```
 
-验证：
+### Verify
 
-```powershell
-openclaw config validate
-openclaw plugins list
+```python
+from memory_backend import BrainMemoryBackend
+b = BrainMemoryBackend()
+print(b.get_stats())
+print(b.recall_detail("我的核心目标是什么"))
 ```
 
-## Agent 工具
+---
 
-| 工具 | 说明 |
-|------|------|
-| `brain_recall` | 混合召回（HyDE + 图 + 衰减） |
-| `brain_store` | 写入记忆 |
-| `brain_consolidate` | 睡眠巩固 |
-| `brain_stats` | 统计仪表盘 |
+## Architecture
+
+```
+User Input
+    ↓
+DeterministicRouter (goal / semantic / reflect / episodic / …)
+    ↓
+├── Attention Working Memory (half-life decay)
+├── LanceDB (HyDE + vector)
+├── Kuzu Graph (Hebbian + multi-hop)
+├── Belief System + Self-Model
+└── Nightly: Consolidation + Reflection + Metabolic cycle
+```
+
+---
+
+## Agent Tools
+
+| Tool | Description |
+|------|-------------|
+| `brain_recall` | Hybrid recall with deterministic routing |
+| `brain_recall_detail` | Full context + route + provenance |
+| `brain_reflect` | Meta-memory reflection |
+| `brain_update_goal` | Goal lifecycle write |
+| `brain_store` | Capture with write gate + belief check |
+| `brain_consolidate` | Sleep consolidation + metabolic cycle |
+| `brain_stats` | Health + belief_count + stability_score |
+
+See `brain_skill/SKILL.md` for the full tool list.
+
+---
+
+## Feature Comparison
+
+| Feature | Brain Memory v5 | mem0 | Vector DB Only |
+|---------|-----------------|------|----------------|
+| Deterministic routing | ✅ | ❌ | ❌ |
+| Belief + reflection | ✅ | ❌ | ❌ |
+| Hebbian graph | ✅ | ❌ | ❌ |
+| Reconsolidation | ✅ | ❌ | ❌ |
+| HyDE retrieval | ✅ | ⚠️ | ❌ |
+| Multi-layer memory | ✅ | ⚠️ | ❌ |
+| Local-first | ✅ | ⚠️ | ✅ |
+| OpenClaw native | ✅ | ⚠️ | ❌ |
+
+---
+
+## Runtime Data
+
+The `memory/` directory is created at runtime (LanceDB, Kuzu, beliefs, etc.) and is **gitignored**. Existing LanceDB tables (`brain_chat_memory`) migrate forward across versions.
+
+---
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
+
+<p align="center"><strong>Brain Memory isn't a plugin. It's a hippocampus for your AI.</strong></p>
