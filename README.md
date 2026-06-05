@@ -167,7 +167,7 @@ Every recall trace carries its full lineage: source, timestamp, layer, importanc
 
 ## 📄 License
 
-[MIT](LICENSE)
+MIT License
 
 ---
 
