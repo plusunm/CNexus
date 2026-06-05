@@ -1,0 +1,46 @@
+{
+  "id": "brain-memory",
+  "kind": "memory",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "ollama_host": {
+        "type": "string"
+      },
+      "embedding_model": {
+        "type": "string"
+      },
+      "llm_model": {
+        "type": "string"
+      },
+      "embedding_dim": {
+        "type": "number"
+      },
+      "auto_capture": {
+        "type": "boolean"
+      },
+      "auto_recall": {
+        "type": "boolean"
+      },
+      "use_hyde": {
+        "type": "boolean"
+      },
+      "recall_top_k": {
+        "type": "number"
+      },
+      "consolidate_enabled": {
+        "type": "boolean"
+      },
+      "scheduler_enabled": {
+        "type": "boolean"
+      },
+      "importance_threshold": {
+        "type": "number"
+      },
+      "min_capture_len": {
+        "type": "number"
+      }
+    }
+  }
+}

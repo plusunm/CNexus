@@ -1,0 +1,19 @@
+{
+  "name": "brain-memory",
+  "version": "4.0.0",
+  "displayName": "🧠 Brain-Memory v4.0 —— 让你的 Agent 真正拥有人类大脑！",
+  "description": "类脑长期记忆：Episodic→Semantic→Procedural多层+HyDE+Reconsolidation，完全本地，145条记忆平滑迁移，安装即第二大脑！",
+  "summary": "类脑长期记忆：Episodic→Semantic→Procedural多层+HyDE+Reconsolidation，完全本地，145条记忆平滑迁移，安装即第二大脑！",
+  "type": "module",
+  "main": "index.js",
+  "openclaw": {
+    "extensions": ["./index.js"],
+    "compat": {
+      "pluginApi": "1.0",
+      "minGatewayVersion": "2026.3.24"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24"
+    }
+  }
+}

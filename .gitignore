@@ -1,0 +1,22 @@
+# Runtime data
+memory/lancedb/
+memory/kuzu_db/
+memory/access_meta.json
+memory/provenance.json
+memory/summaries/
+memory/export/
+memory/*.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build
+dist/
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db

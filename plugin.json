@@ -1,0 +1,58 @@
+{
+  "name": "brain-memory",
+  "version": "4.0.0",
+  "description": "类脑长期记忆 v4.0 | HyDE + 多层架构 + Prefrontal缓存 + Reconsolidation + Provenance + Hebbian + APScheduler",
+  "author": "Boss",
+  "license": "MIT",
+  "type": "memory",
+  "slots": ["memory"],
+  "entry": "memory_backend:BrainMemoryBackend",
+  "tags": [
+    "memory", "long-term", "local", "graph", "consolidation", "bio-inspired",
+    "hebbian", "reconsolidation", "hyde", "provenance", "multi-layer"
+  ],
+  "openclaw": {
+    "compat": {
+      "pluginApi": "1.0",
+      "minVersion": "2026.5.0"
+    },
+    "registry": {
+      "clawhub": true,
+      "github": true
+    }
+  },
+  "dependencies": {
+    "python": [
+      "langchain-ollama>=0.1.0",
+      "langchain-core>=0.2.0",
+      "lancedb>=0.5.0",
+      "kuzu>=0.8.0",
+      "pyarrow",
+      "numpy",
+      "requests",
+      "apscheduler>=3.10.0",
+      "tqdm",
+      "python-dateutil"
+    ]
+  },
+  "config": {
+    "ollama_host": "http://localhost:11434",
+    "embedding_model": "nomic-embed-text",
+    "llm_model": "llama3.2",
+    "embedding_dim": 768,
+    "auto_capture": true,
+    "auto_recall": true,
+    "use_hyde": true,
+    "recall_top_k": 12,
+    "consolidate_enabled": true,
+    "consolidate_cron": "0 3 * * *",
+    "scheduler_enabled": true,
+    "importance_threshold": 0.52,
+    "forget_alpha": 0.85,
+    "hebbian_strength": 0.72,
+    "reconsolidate_enabled": true,
+    "deep_reconsolidate_prob": 0.0,
+    "short_term_capacity": 32,
+    "min_capture_len": 8
+  }
+}

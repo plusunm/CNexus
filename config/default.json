@@ -1,0 +1,20 @@
+{
+  "ollama_host": "http://localhost:11434",
+  "embedding_model": "nomic-embed-text",
+  "llm_model": "llama3.2",
+  "embedding_dim": 768,
+  "auto_capture": true,
+  "auto_recall": true,
+  "use_hyde": true,
+  "recall_top_k": 12,
+  "consolidate_enabled": true,
+  "consolidate_cron": "0 3 * * *",
+  "scheduler_enabled": true,
+  "importance_threshold": 0.52,
+  "forget_alpha": 0.85,
+  "hebbian_strength": 0.72,
+  "reconsolidate_enabled": true,
+  "deep_reconsolidate_prob": 0.0,
+  "short_term_capacity": 32,
+  "min_capture_len": 8
+}

@@ -1,0 +1,8 @@
+memory/
+dist/
+*.zip
+__pycache__/
+.venv/
+venv/
+governance_output.txt
+*.pyc
