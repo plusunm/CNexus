@@ -16,5 +16,15 @@
   "reconsolidate_enabled": true,
   "deep_reconsolidate_prob": 0.0,
   "short_term_capacity": 32,
-  "min_capture_len": 8
+  "min_capture_len": 8,
+  "enable_multi_hop": true,
+  "enable_metabolic": true,
+  "dedup_similarity": 0.88,
+  "write_gate_threshold": 0.45,
+  "graph_prune_confidence": 0.35,
+  "compress_similarity": 0.90,
+  "attention_half_life": 3600,
+  "belief_compat_threshold": 0.72,
+  "reflection_enabled": true,
+  "agent_identity": "helpful cognitive agent"
 }

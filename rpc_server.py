@@ -68,6 +68,22 @@ def _dispatch(method: str, params: dict):
         return {"ok": True}
     if method == "consolidate":
         return b.consolidate()
+    if method == "link_provenance":
+        b.link_answer_provenance(
+            p.get("query", ""),
+            p.get("answer", ""),
+            p.get("cited_ids") or [],
+        )
+        return {"ok": True}
+    if method == "update_goal":
+        mid = b.update_goal_memory(
+            p.get("goal", ""),
+            float(p.get("importance", p.get("priority", 0.88))),
+            status=str(p.get("status", "active")),
+        )
+        return {"memory_id": mid}
+    if method == "reflect":
+        return {"summary": b.run_reflection()}
     if method == "stats":
         return b.get_stats()
     raise ValueError(f"unknown method: {method}")

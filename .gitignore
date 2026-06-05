@@ -1,11 +1,22 @@
 # Runtime data
 memory/lancedb/
 memory/kuzu_db/
+memory/kuzu_db.wal
 memory/access_meta.json
 memory/provenance.json
+memory/edge_meta.json
+memory/beliefs.json
+memory/self_model.json
+memory/goal_lifecycle.json
 memory/summaries/
 memory/export/
 memory/*.md
+
+# Local / process
+.brain-memory-rpc.pid
+bak.memory_backend.py
+governance_output.txt
+verify_output.txt
 
 # Python
 __pycache__/

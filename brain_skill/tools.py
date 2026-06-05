@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Brain-Memory v4.0 — Agent 工具层（ClawHub / OpenClaw Skills 发布版）"""
+"""Brain-Memory v5.0 — Agent 工具层"""
 
 from __future__ import annotations
 
@@ -34,6 +34,10 @@ def get_tools(backend: BrainMemoryBackend | None = None) -> dict:
         "brain_recall": b.recall,
         "brain_hyde_recall": lambda query, top_k=None: b.recall(query, top_k=top_k, use_hyde=True),
         "brain_recall_detail": b.recall_detail,
+        "brain_multi_hop_recall": lambda query, top_k=None, use_hyde=None: json.dumps(
+            b.multi_hop_recall(query, top_k=top_k, use_hyde=use_hyde),
+            ensure_ascii=False,
+        ),
         "brain_extract_entities": b.extract_entities_and_relations,
         "brain_hebbian_strengthen": b.update_hebbian_edges,
         "brain_reconsolidate": b.full_reconsolidate,
@@ -43,6 +47,16 @@ def get_tools(backend: BrainMemoryBackend | None = None) -> dict:
             ensure_ascii=False,
         ),
         "brain_provenance": b.get_provenance,
+        "brain_link_provenance": lambda query, answer, cited_ids: b.link_answer_provenance(
+            query, answer, cited_ids if isinstance(cited_ids, list) else []
+        ),
+        "brain_update_goal": lambda goal, importance=0.88, status="active": b.update_goal_memory(
+            goal, importance, status=status
+        ),
+        "brain_reflect": b.run_reflection,
+        "brain_update_intent": lambda intent, importance=0.82: b.update_intent_memory(intent, importance),
+        "brain_update_plan": lambda plan, importance=0.80: b.update_plan_memory(plan, importance),
+        "brain_compress": lambda: b.compress_similar_episodics(),
         "brain_search_time": b.search_time_range,
         "brain_stats": lambda: json.dumps(b.get_stats(), ensure_ascii=False, indent=2),
         "brain_layer_stats": b.get_layer_stats,

@@ -1,5 +1,39 @@
 # Changelog
 
+## 5.0.0 (2026-05-28)
+
+### Cognitive Stability Architecture
+
+- **DeterministicRouter**：关键词 → 嵌入原型 → LLM 兜底，减少路由漂移
+- **Dynamic Attention Field**：Working Memory 半衰期衰减（`attention_half_life`）
+- **Belief System**：`beliefs.json` 持久化 + 写入兼容检测 + 代谢调和
+- **Reflection Engine**：`run_reflection()` Meta-Memory + `meta` 层
+- **Goal Lifecycle Graph**：`goal_lifecycle.json` + 状态机（active/completed/…）
+- **Identity Stability**：`self_model.json` + stability_score 治理
+- **Cognitive Governance**：Write Gate + Belief Conflict Gate 扩展
+
+## 4.2.0 (2026-06-05)
+
+### Cognitive OS 升级
+
+- **QueryRouter**：short_term / episodic / semantic / graph_reasoning / goal / archive 分层路由
+- **Attention Working Memory**：recency + importance + emotional + goal_relevance 加权驱逐
+- **Write Gate**：低价值记忆拒绝落盘（`write_gate_threshold`）
+- **Graph Pruning**：`edge_meta.json` 追踪 confidence/last_verified，定期剪枝
+- **Semantic Compression**：`compress_similar_episodics()` 冗余 episodic → semantic
+- **Goal Memory**：goal / intent / plan 层 + `update_goal_memory()` 等接口
+- **Recall Metrics**：`get_stats()` 返回 `recall_routes`、压缩/剪枝计数
+
+## 4.1.0 (2026-06-05)
+
+### 最优合并版（Desktop ind + 旧版 .bak）
+
+- **旧版保留**：HyDE、Working Memory、Reconsolidation、Consolidation、Ebbinghaus 遗忘
+- **v4 并入**：Multi-hop 图遍历、Cognitive Graph（RELATED/FOLLOWS）、Schema 层注入、SUPPORTED_BY 溯源
+- **焊死 pipeline**：CaptureFilter 入口过滤、embedding 去重合并、代谢循环 `_neuro_forgetting`
+- **桥接同步**：`index.js` / `openclaw.plugin.json` 新配置项、`brain_link_provenance` 工具
+- **Skill 同步**：`brain_skill/tools.py` + `SKILL.md` v4.1
+
 ## 4.0.0 (2026-05-30)
 
 ### 正式发布 (2026-06-05)

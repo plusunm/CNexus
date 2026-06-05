@@ -210,7 +210,7 @@ function extractUserTexts(messages) {
 export default {
   id: "brain-memory",
   name: "Brain Memory",
-  description: "Local brain-inspired memory (Ollama + LanceDB + HyDE)",
+  description: "Cognitive Stability v5.0 — Deterministic Router + Belief System + Reflection + Goal Lifecycle",
   kind: "memory",
   configSchema: {
     type: "object",
@@ -228,6 +228,20 @@ export default {
       scheduler_enabled: { type: "boolean" },
       importance_threshold: { type: "number" },
       min_capture_len: { type: "number" },
+      enable_multi_hop: { type: "boolean" },
+      enable_metabolic: { type: "boolean" },
+      dedup_similarity: { type: "number" },
+      forget_alpha: { type: "number" },
+      hebbian_strength: { type: "number" },
+      reconsolidate_enabled: { type: "boolean" },
+      short_term_capacity: { type: "number" },
+      write_gate_threshold: { type: "number" },
+      graph_prune_confidence: { type: "number" },
+      compress_similarity: { type: "number" },
+      attention_half_life: { type: "number" },
+      belief_compat_threshold: { type: "number" },
+      reflection_enabled: { type: "boolean" },
+      agent_identity: { type: "string" },
     },
   },
   register(api) {
@@ -239,6 +253,8 @@ export default {
       auto_recall: true,
       use_hyde: true,
       recall_top_k: 12,
+      enable_multi_hop: true,
+      enable_metabolic: true,
       ...api.pluginConfig,
     };
 
@@ -284,6 +300,17 @@ export default {
       rpc.call("consolidate"));
 
     tool("brain_stats", "Brain memory statistics", async () => rpc.call("stats"));
+
+    tool(
+      "brain_link_provenance",
+      "Link agent answer to cited memory nodes (SUPPORTED_BY graph)",
+      async (p) =>
+        rpc.call("link_provenance", {
+          query: p.query ?? "",
+          answer: p.answer ?? "",
+          cited_ids: p.cited_ids ?? [],
+        }),
+    );
 
     if (cfg.auto_recall !== false) {
       api.on("before_agent_start", async (event) => {

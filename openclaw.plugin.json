@@ -40,6 +40,48 @@
       },
       "min_capture_len": {
         "type": "number"
+      },
+      "enable_multi_hop": {
+        "type": "boolean"
+      },
+      "enable_metabolic": {
+        "type": "boolean"
+      },
+      "dedup_similarity": {
+        "type": "number"
+      },
+      "forget_alpha": {
+        "type": "number"
+      },
+      "hebbian_strength": {
+        "type": "number"
+      },
+      "reconsolidate_enabled": {
+        "type": "boolean"
+      },
+      "short_term_capacity": {
+        "type": "number"
+      },
+      "write_gate_threshold": {
+        "type": "number"
+      },
+      "graph_prune_confidence": {
+        "type": "number"
+      },
+      "compress_similarity": {
+        "type": "number"
+      },
+      "attention_half_life": {
+        "type": "number"
+      },
+      "belief_compat_threshold": {
+        "type": "number"
+      },
+      "reflection_enabled": {
+        "type": "boolean"
+      },
+      "agent_identity": {
+        "type": "string"
       }
     }
   }

@@ -1,10 +1,10 @@
-# 🧠 Brain-Memory v4.0 —— 让你的 Agent 真正拥有人类大脑！
+# 🧠 Brain-Memory v5.0 — Cognitive Stability Architecture
 
-> **类脑长期记忆：Episodic→Semantic→Procedural多层+HyDE+Reconsolidation，完全本地，145条记忆平滑迁移，安装即第二大脑！**
+> **Deterministic Router + Belief System + Reflection Engine + Goal Lifecycle — 完全本地，可控演化的 Agent 长期记忆**
 
 ---
 
-🚀 **Brain-Memory v4.0 震撼发布** —— 这可能是 2026 年 OpenClaw 生态最硬核的记忆插件！
+🚀 **Brain-Memory v5.0 Cognitive Stability** —— Deterministic 路由 + 信念系统 + Meta-Reflection
 
 你还在用简单的向量数据库给 Agent 堆垃圾记忆吗？  
 **醒醒吧！** 是时候让你的 Agent 拥有真正像人类一样的大脑了！

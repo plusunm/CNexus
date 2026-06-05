@@ -1,52 +1,51 @@
 ---
 name: brain-memory-tools
-description: 大脑记忆 v4.0 — HyDE + 多层记忆 + Provenance 可解释性 + Hebbian 图增强
-version: 4.0.0
-tags: [memory, brain, hyde, hebbian, provenance, consolidation, multi-layer]
+description: 大脑记忆 v5.0 — Cognitive Stability | Deterministic Router + Belief + Reflection
+version: 5.0.0
+tags: [memory, brain, belief, reflection, goal-lifecycle, deterministic-router, stability]
 ---
 
-# brain-memory-tools v4.0
+# brain-memory-tools v5.0
 
-**描述**：OpenClaw 类脑长期记忆工具集 — 与 memory slot 插件双保险（自动 + 显式）。
+**描述**：OpenClaw 类脑长期记忆 — v5.0 Cognitive Stability Architecture。
 
 ## 工具列表
 
 | 工具 | 说明 |
 |------|------|
-| `brain_recall(query, top_k=12, use_hyde=true)` | 混合检索（默认 HyDE） |
-| `brain_hyde_recall(query)` | 强制 HyDE 召回 |
-| `brain_recall_detail(query)` | 返回 context + provenance + items（JSON） |
-| `brain_store(role, content, layer="episodic")` | 存储（episodic/semantic/procedural） |
-| `brain_extract_entities(content)` | LLM 实体关系抽取 |
-| `brain_hebbian_strengthen(mem_id, content)` | 实体驱动 Hebbian 边强化 |
-| `brain_consolidate()` | 多层睡眠巩固 → Semantic 摘要 |
-| `brain_forget(dry_run=true)` | 主动遗忘（先 dry_run 预览） |
-| `brain_provenance(mem_id)` | 记忆溯源链 |
-| `brain_search_time(start_iso, end_iso)` | 时间范围搜索 |
-| `brain_layer_stats()` | 各层记忆分布 |
-| `brain_stats()` | 健康度统计 |
-| `brain_export()` | Markdown 完整导出 |
-| `brain_backfill(path)` | 从 chat_history.db 回填 |
+| `brain_recall(query, top_k=12, use_hyde=true)` | Deterministic Router + HyDE + 图扩展 |
+| `brain_recall_detail(query)` | context + route + provenance（JSON） |
+| `brain_reflect()` | Meta-Memory 反思引擎 |
+| `brain_update_goal(goal, importance=0.88, status="active")` | Goal Lifecycle 写入 |
+| `brain_store(role, content, layer="episodic")` | 存储（CaptureFilter + Write Gate + Belief Check） |
+| `brain_consolidate()` | 睡眠巩固 + v5.0 代谢循环 |
+| `brain_stats()` | 含 belief_count / self_stability / recall_routes |
+| `brain_layer_stats()` | 含 meta 层分布 |
 
-## 使用规则（实验室标准）
+（其余工具同 v4.x：multi-hop、provenance、forget、export 等）
 
-1. **思考前**：`brain_recall` 或 `brain_hyde_recall`
-2. **关键决策后**：`brain_store(..., layer="semantic")` 存偏好/事实
-3. **技能/流程模式**：`layer="procedural"`
-4. **每日 / 用户要求**：`brain_consolidate`
-5. **可解释性**：用 `brain_provenance` 说明结论来源
-6. **膨胀治理**：`brain_forget(dry_run=true)` → 确认 → `dry_run=false`
+## v5.0 路由类型
 
-## OpenClaw 配置
+`short_term` | `goal` | `semantic` | `reflect` | `archive` | `graph_reasoning` | `episodic`
+
+## 配置（openclaw.json）
 
 ```json
 {
   "plugins": {
-    "slots": {
-      "memory": "brain-memory"
+    "entries": {
+      "brain-memory": {
+        "config": {
+          "write_gate_threshold": 0.45,
+          "attention_half_life": 3600,
+          "belief_compat_threshold": 0.72,
+          "reflection_enabled": true,
+          "enable_metabolic": true
+        }
+      }
     }
   }
 }
 ```
 
-Plugin 自动：`on_message` 捕获、`before_llm_call` HyDE 注入。
+Plugin 自动：`before_agent_start` recall、`agent_end` capture。
