@@ -1,25 +1,11 @@
-
-  
-🧠 Brain Memory
-
-  
-Local cognitive memory for AI agents.
-
-
-  
-Hebbian learning · Reconsolidation · HyDE retrieval · Local-first
-
-
-  
-
-    
-    
-    
-    
-  
-
-
-
+<div align="center">
+  <h1>🧠 Brain Memory</h1>
+  <p><strong>Local cognitive memory for AI agents.</strong></p>
+  <p>Hebbian learning · Reconsolidation · HyDE retrieval · Local-first</p>  <p>
+    <a href="https://github.com/plusunm/brain-memory/stargazers"><img src="https://img.shields.io/github/stars/plusunm/brain-memory?style=flat-square" alt="Stars"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/plusunm/brain-memory?style=flat-square" alt="License"></a>    <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square" alt="Python">
+    <img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey?style=flat-square" alt="Platform">  </p>
+</div>
 
 ---
 
@@ -27,7 +13,7 @@ Hebbian learning · Reconsolidation · HyDE retrieval · Local-first
 
 **Stop re-explaining your project to AI every day.**
 
-Brain Memory gives your agents persistent long-term memory across sessions, projects, and coding workflows. It's not a vector database wrapper — it's a cognitive architecture that models how real brains learn, forget, and consolidate.
+Brain Memory gives your agents persistent long-term memory across sessions, projects, and coding workflows. It's not a vector database wrapper — it's an agent cognitive infrastructure that models how real brains learn, forget, and consolidate.
 
 ```bash
 openclaw plugins install brain-memory
@@ -83,6 +69,8 @@ User Input
     └── Nightly: Sleep Consolidation → Ebbinghaus Decay
 ```
 
+*(SVG architecture diagram coming soon.)*
+
 ---
 
 ## 🚀 Quick Start
@@ -96,10 +84,8 @@ User Input
 ```bash
 # Install plugin
 openclaw plugins install brain-memory
-
 # Enable as default memory slot
 openclaw config set plugins.slots.memory brain-memory
-
 # (Or manual install)
 git clone https://github.com/plusunm/brain-memory.git
 cd brain-memory
@@ -110,16 +96,36 @@ pip install -r requirements.txt
 
 ```python
 from memory_backend import BrainMemoryBackend
-
 memory = BrainMemoryBackend(auto_init=True)
-
 # Store a memory
 memory.capture(role='user', content='User prefers Chinese, uses Ollama locally')
-
 # Recall relevant memories
 results = memory.recall('What language does the user prefer?')
 print(results)
 ```
+
+---
+
+## 💡 Use Cases
+
+- **Long-running coding agents** — survive session restarts without losing project context
+- **Persistent project memory** — agent remembers architecture, preferences, and decisions across weeks
+- **AI pair programming** — no need to re-introduce the codebase on every new conversation
+- **Multi-session research agents** — accumulate domain knowledge over days of exploration
+- **MCP agent ecosystems** — shared memory across tool-calling agent networks
+- **Local-first autonomous workflows** — privacy-preserving cognitive continuity without cloud
+
+---
+
+
+## 💡 Use Cases
+
+- **Long-running coding agents** — survive session restarts without losing project context
+- **Persistent project memory** — agent remembers architecture, preferences, and decisions across weeks
+- **AI pair programming** — no need to re-introduce the codebase on every new conversation
+- **Multi-session research agents** — accumulate domain knowledge over days of exploration
+- **MCP agent ecosystems** — shared memory across tool-calling agent networks
+- **Local-first autonomous workflows** — privacy-preserving cognitive continuity without cloud
 
 ---
 
@@ -135,7 +141,7 @@ Memories are automatically distilled across three layers — just like the human
 Entities automatically strengthen connections as they co-occur. "Cells that fire together wire together" — Kuzu graph DB persists these dynamic relationships.
 
 ### 3. Retrieval-induced Reconsolidation
-Every recall rewrites the memory trace, strengthening or updating it. This prevents memory decay from simple re-reading and keeps knowledge fresh.
+Every recall rewrites the memory trace, strengthening or updating it. This prevents memory decay from simple re-reading.
 
 ### 4. Prefrontal Cache
 Working memory with LRU eviction. The most recent and important items stay hot for fast retrieval.
@@ -161,7 +167,7 @@ Brain Memory actively filters:
 - transient context
 - low-value traces
 
-The goal is not maximum storage. The goal is useful cognition.
+The goal is not maximum storage. The goal is **useful cognition**.
 
 ---
 
@@ -189,6 +195,16 @@ This project is under active development. Known areas:
 
 ---
 
+## 🗺️ Roadmap
+
+- [ ] Learned memory governance (ML-based importance scoring)
+- [ ] Procedural replay engine for skill abstraction
+- [ ] MCP-native distributed memory for multi-agent setups
+- [ ] Multi-agent shared memory namespace
+- [ ] Evaluation suite for memory persistence benchmarks
+
+---
+
 ## 🛠️ Supported Ecosystem
 
 - **OpenClaw** — native plugin integration
@@ -199,7 +215,7 @@ This project is under active development. Known areas:
 
 ## 📦 Topics
 
-`memory` `agent-memory` `openclaw` `claude-code` `codex` `rag` `hebbian-learning` `ai-memory` `persistent-memory` `cognitive-architecturee` `reconsolidation` `local-first` `hyde`
+`memory` `agent-memory` `openclaw` `claude-code` `codex` `rag` `hebbian-learning` `ai-memory` `persistent-memory` `cognitive-architecture` `reconsolidation` `local-first` `hyde`
 
 ---
 
@@ -209,6 +225,6 @@ MIT License
 
 ---
 
-
-  Brain Memory isn't a plugin. It's a hippocampus for your AI.
-
+<p align="center">
+  <strong>Brain Memory isn't a plugin. It's a hippocampus for your AI.</strong>
+</p>
