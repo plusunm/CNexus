@@ -1,14 +1,25 @@
-<div align="center">
-  <h1>🧠 Brain Memory</h1>
-  <p><strong>Persistent cognitive memory for OpenClaw / Claude Code / Codex.</strong></p>
-  <p>Hebbian learning · Reconsolidation · HyDE retrieval · Local-first</p>
-  <p>
-    <a href="https://github.com/plusunm/brain-memory/stargazers"><img src="https://img.shields.io/github/stars/plusunm/brain-memory?style=flat-square" alt="Stars"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/github/license/plusunm/brain-memory?style=flat-square" alt="License"></a>
-    <img src="https://img.shields.io/badge/python-3.11+-blue?style=flat-square" alt="Python">
-    <img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey?style=flat-square" alt="Platform">
-  </p>
-</div>
+
+  
+🧠 Brain Memory
+
+  
+Local cognitive memory for AI agents.
+
+
+  
+Hebbian learning · Reconsolidation · HyDE retrieval · Local-first
+
+
+  
+
+    
+    
+    
+    
+  
+
+
+
 
 ---
 
@@ -55,10 +66,10 @@ User Input
     ├── Extraction + Importance Scoring
     │   (LLM evaluates: keep? forget? level?)
     │
-    ├──┐          ┌─┐
-    │  LanceDB Vector  │  │  Kuzu Graph     │
-    │  (HyDE + dense)  │  │  (Hebbian edges)│
-    ├──┘          └─┘
+    ├──┐          ┌──┐
+    │  LanceDB Vector  │  │  Kuzu Graph      │
+    │  (HyDE + dense)  │  │  (Hebbian edges) │
+    ├──┘          └──┘
     │
     ├── Hybrid Retrieval
     │   vector + graph + time
@@ -118,7 +129,7 @@ print(results)
 Memories are automatically distilled across three layers — just like the human brain:
 - **Episodic** — raw events, conversations, experiences
 - **Semantic** — extracted facts, preferences, knowledge
-- **Procedural** — reusable skills, workflows, patterns
+- **Procedural** — reusable skills, workflows, patterns *(experimental)*
 
 ### 2. Hebbian Learning Graph
 Entities automatically strengthen connections as they co-occur. "Cells that fire together wire together" — Kuzu graph DB persists these dynamic relationships.
@@ -140,28 +151,55 @@ Every recall trace carries its full lineage: source, timestamp, layer, importanc
 
 ---
 
+## 🧹 Memory Governance
+
+Most AI memory systems fail because they remember too much.
+
+Brain Memory actively filters:
+- noisy tool outputs
+- duplicate recalls
+- transient context
+- low-value traces
+
+The goal is not maximum storage. The goal is useful cognition.
+
+---
+
 ## 📊 Benchmarks
+
+*Preliminary internal benchmarks — methodology will be published with the next release.*
 
 | Metric | Value |
 |---|---|
 | Recall latency (local) | ~18ms |
-| Memory retrieval accuracy | +27% over pure vector |
+| Retrieval accuracy improvement | +27% vs pure vector baseline |
 | Token reduction from context | ~42% |
 | Storage per 1K memories | ~2.5MB |
+
+---
+
+## 🧪 Limitations
+
+This project is under active development. Known areas:
+
+- **Semantic promotion** — pipeline from episodic to semantic is still experimental; results vary by domain
+- **Ollama dependency** — full retrieval quality requires `nomic-embed-text` running locally
+- **Procedural layer** — initial scaffolding in place, abstraction and replay logic not yet stable
+- **Memory governance** — current filters are heuristic-based; a learned governance pipeline is planned
 
 ---
 
 ## 🛠️ Supported Ecosystem
 
 - **OpenClaw** — native plugin integration
-- **Claude Code / Codex** — via MCP bridge (coming soon)
+- **Claude Code / Codex** — MCP bridge ([planned](https://github.com/plusunm/brain-memory/issues))
 - **Any MCP-compatible agent** — extensible adapter
 
 ---
 
 ## 📦 Topics
 
-`memory` `agent-memory` `openclaw` `claude-code` `codex` `rag` `hebbian-learning` `ai-memory` `persistent-memory` `cognitive-architecture` `reconsolidation` `local-first` `hyde`
+`memory` `agent-memory` `openclaw` `claude-code` `codex` `rag` `hebbian-learning` `ai-memory` `persistent-memory` `cognitive-architecure` `reconsolidation` `local-first` `hyde`
 
 ---
 
@@ -171,6 +209,6 @@ MIT License
 
 ---
 
-<p align="center">
-  <strong>Brain Memory isn't a plugin. It's a hippocampus for your AI.</strong>
-</p>
+
+  Brain Memory isn't a plugin. It's a hippocampus for your AI.
+
