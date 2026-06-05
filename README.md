@@ -199,7 +199,7 @@ This project is under active development. Known areas:
 
 ## 📦 Topics
 
-`memory` `agent-memory` `openclaw` `claude-code` `codex` `rag` `hebbian-learning` `ai-memory` `persistent-memory` `cognitive-architecure` `reconsolidation` `local-first` `hyde`
+`memory` `agent-memory` `openclaw` `claude-code` `codex` `rag` `hebbian-learning` `ai-memory` `persistent-memory` `cognitive-architecturee` `reconsolidation` `local-first` `hyde`
 
 ---
 
