@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from core.config_loader import ConfigLoader
 from core.embedding import EmbeddingService
+from core.paths import get_project_root, resolve_memory_dir
 from core.governance.coordinator import StabilityCoordinator
 from core.governance.safety.policy_engine import GovernancePolicyEngine
 from core.personality.belief.belief_engine import BeliefEngine
@@ -15,13 +16,18 @@ from core.personality.narrative.narrative_builder import NarrativeBuilder
 from core.personality.reflective.reflection_pipeline import ReflectionPipeline
 from core.personality.reflective.reflective_memory import ReflectionRecord
 from core.personality.reflective.reflective_store import ReflectiveMemoryStore
+from core.self_model import SelfModelStore
 from core.validation.validation_orchestrator import StabilityValidationOrchestrator
 from memory.filter import CaptureFilter
 from memory.schema import Memory
 from runtime.attention import DynamicAttentionField
 from runtime.cognitive_apply import process_parsed_state
 from runtime.cognitive_parser import CognitiveStateParser, IdentitySummaryScheduler
+from runtime.cognitive_recall import CognitiveRecallEngine
+from runtime.cognitive_state import PersistentCognitiveState
 from runtime.context import ContextAssemblyEngine
+from runtime.predictive_loop import PredictiveSelf
+from core.governance.deliberation import DeliberativeGovernance
 from runtime.router import HierarchicalRecallRouter
 from runtime.state import CognitiveStateManager
 from storage.manager import UnifiedStorageManager
@@ -38,16 +44,17 @@ class BrainMemoryRuntime:
         base_dir: str = "memory",
         project_root: Optional[str] = None,
     ):
-        self.project_root = Path(project_root or Path.cwd())
+        self.project_root = get_project_root(project_root)
         config_dir = self.project_root / "config" if not Path(config_path).is_absolute() else Path(config_path).parent
         self.config_loader = ConfigLoader.get_instance(str(config_dir))
         cfg = self.config_loader.config
 
-        self.base_dir = str(self.project_root / base_dir)
+        self.base_dir = resolve_memory_dir(self.project_root, base_dir)
         self.embedder = EmbeddingService(
             host=cfg.get("ollama_host", "http://localhost:11434"),
             model=cfg.get("embedding_model", "nomic-embed-text"),
             vector_dim=cfg.get("vector_dim", 768),
+            fallback=cfg.get("embedding_fallback", "hash"),
         )
 
         # Layer 1 — Storage
@@ -57,12 +64,17 @@ class BrainMemoryRuntime:
         )
         self.storage.set_embedder(self.embedder)
 
-        # Layer 2 — Cognitive Runtime
+        # Layer 2 — Cognitive Runtime (G2)
         self.attention = DynamicAttentionField()
         self.state = CognitiveStateManager()
+        self.working_self = PersistentCognitiveState()
+        self.self_model_store = SelfModelStore(self.base_dir)
+        self.predictive = PredictiveSelf()
         self.cognitive_parser = CognitiveStateParser(llm_hook=None)
         self.identity_scheduler = IdentitySummaryScheduler(interval_turns=5, dissonance_threshold=0.65)
         self.router = HierarchicalRecallRouter(self.storage)
+        self.recall_engine = CognitiveRecallEngine(self.storage, self.router)
+        self.deliberation = DeliberativeGovernance()
         self.context_engine = ContextAssemblyEngine(self.attention)
 
         # Layer 3 — Personality Continuity
@@ -93,7 +105,12 @@ class BrainMemoryRuntime:
         self.validation = StabilityValidationOrchestrator(self)
 
         self.recall_top_k = cfg.get("recall_top_k", 12)
-        logger.info("Brain-Memory G1 v%s initialized — Stability First", "1.0.0-g1")
+        self.runtime_mode = cfg.get("runtime_mode", "g2")
+        logger.info(
+            "Brain-Memory G1 v%s initialized — %s Cognitive Runtime",
+            "1.0.0-g1",
+            self.runtime_mode.upper(),
+        )
 
     # ==================== Facade aliases (统一 API) ====================
     @property
@@ -192,13 +209,18 @@ class BrainMemoryRuntime:
             importance=importance,
             current_beliefs=current_beliefs,
         )
-        return process_parsed_state(
+        self.working_self.update_from_input(
+            user_input, self.dna_engine.dna, parsed=parsed, layer=layer, importance=importance
+        )
+        applied = process_parsed_state(
             parsed,
             narrative=self.narrative,
             belief_engine=self.belief_engine,
             state=self.state,
             scheduler=self.identity_scheduler,
         )
+        self.working_self.sync_to_legacy(self.state)
+        return applied
 
     def parse_cognitive_state(
         self,
@@ -228,18 +250,139 @@ class BrainMemoryRuntime:
 
     def recall(self, query: str, top_k: Optional[int] = None) -> str:
         top_k = top_k or self.recall_top_k
-        recall_results = self.router.hybrid_recall(query, top_k=top_k)
+
+        if self.runtime_mode == "g2":
+            recall_results = self.recall_engine.activate(
+                query, self.working_self, self.dna_engine.dna, top_k=top_k
+            )
+        else:
+            recall_results = self.router.hybrid_recall(query, top_k=top_k)
 
         activated = self.attention.attention_competition(recall_results, query)
         self.state.sync_from_attention(activated)
+        self.working_self.sync_to_legacy(self.state)
 
         context = self.context_engine.assemble(query, recall_results)
         identity_anchor = self.narrative.generate_identity_anchor()
+        self_block = self.self_model.to_prompt_block()
+        state_block = (
+            f"【Working Self】\n"
+            f"• goal_focus={self.working_self.goal_focus} "
+            f"coherence={self.working_self.cumulative_coherence:.2f} "
+            f"prediction_error={self.working_self.prediction_error:.2f}"
+        )
         identity_block = (
             f"【Identity Context】\n"
             f"• {self.narrative.get_current_narrative_summary()}"
         )
-        return f"{identity_anchor}\n\n{identity_block}\n\n{context}"
+        return f"{identity_anchor}\n\n{self_block}\n\n{state_block}\n\n{identity_block}\n\n{context}"
+
+    @property
+    def self_model(self):
+        return self.self_model_store.model
+
+    def _sync_narrative_from_self_model(self) -> None:
+        """Narrative is material; SelfModel is the interpreter."""
+        n = self.narrative.narrative
+        n.identity_summary = self.self_model.identity_summary[:500]
+        n.persistent_beliefs = dict(self.self_model.core_beliefs)
+        n.narrative_coherence_score = self.self_model.coherence_score
+        user_rel = self.self_model.relational_models.get("user", {})
+        if user_rel:
+            n.relationship_scores["user"] = float(user_rel.get("trust", 0.7))
+            n.relationship_status["user"] = str(user_rel.get("tone", "neutral"))
+
+    def _sync_beliefs_from_self_model(self) -> None:
+        for content, confidence in self.self_model.core_beliefs.items():
+            self.belief_engine.add_or_update_belief(
+                f"核心信念：{content}", confidence=confidence
+            )
+
+    def _generate_constrained_response(self, user_input: str, context: str) -> str:
+        """Self-Model constrained draft (LLM layer injects self_model.to_prompt_block())."""
+        return (
+            f"[Stable Response] 基于我的长期身份：{self.self_model.identity_summary[:80]}，"
+            f"结合当前认知上下文，回应：{user_input[:120]}"
+        )
+
+    def process_interaction(
+        self,
+        user_input: str,
+        *,
+        assistant_output: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Subject Runtime Loop — experience → interpretation → self-update → prediction.
+        """
+        self.working_self.update_from_input(user_input, self.dna_engine.dna, importance=0.65)
+
+        capture_id = self.capture("user", user_input, importance=0.65)
+        if isinstance(capture_id, str) and capture_id.startswith("denied"):
+            return {"ok": False, "reason": capture_id}
+
+        context = self.recall(user_input)
+        response = assistant_output or self._generate_constrained_response(user_input, context)
+
+        allowed, gate_reason = self.deliberation.deliberate(
+            response, self.working_self, self.dna_engine.dna
+        )
+        if not allowed:
+            return {
+                "ok": False,
+                "reason": gate_reason,
+                "context": context,
+                "response": response,
+                "working_self": self.working_self.to_dict(),
+                "self_model": self.self_model.to_dict(),
+            }
+
+        error = self.predictive.predict_and_update(
+            user_input, response, self.working_self, self.self_model
+        )
+        reflection = f"本次交互预测误差 {error:.2f}，"
+        reflection += "触发自我校正。" if error > 0.4 else "维持稳定性身份。"
+
+        integration = self.self_model_store.integrate(
+            user_input,
+            response,
+            reflection=reflection,
+            dna=self.dna_engine.dna,
+            prediction_error=error,
+            relation_shift=self.working_self.relationship_tone - 0.7,
+        )
+
+        self.narrative.update_from_interaction(
+            user_input, response, reflection=reflection, importance=0.65
+        )
+        self._sync_narrative_from_self_model()
+        self._sync_beliefs_from_self_model()
+
+        self.capture("assistant", response, importance=0.55)
+
+        self.working_self.update_prediction_error()
+        self.working_self.add_reflection(reflection)
+        self.deliberation.regulate_homeostasis(self.working_self)
+        self.working_self.sync_to_legacy(self.state)
+
+        gov = self.run_governance_cycle()
+
+        return {
+            "ok": True,
+            "response": response,
+            "capture_id": capture_id,
+            "context": context,
+            "working_self": self.working_self.to_dict(),
+            "self_model": self.self_model.to_dict(),
+            "integration": integration,
+            "predictive": self.predictive.to_dict(),
+            "prediction_error": error,
+            "reflection": reflection,
+            "governance": gov.get("stability_metrics"),
+        }
+
+    def process(self, user_input: str, *, assistant_output: Optional[str] = None) -> Dict[str, Any]:
+        """G2 Cognitive Loop alias — delegates to process_interaction."""
+        return self.process_interaction(user_input, assistant_output=assistant_output)
 
     def trait_based_reflection(
         self,
@@ -250,6 +393,17 @@ class BrainMemoryRuntime:
     ) -> ReflectionRecord:
         """反思管道 — Narrative + Belief + Memory 闭环；可选触发治理检查"""
         record = self.reflection_pipeline.process_reflection(content, traits)
+        summary = (
+            f"Reflection on {', '.join(record.traits)}: {record.inner_thought[:100]}"
+        )
+        self.self_model_store.integrate(
+            content,
+            summary,
+            reflection=summary,
+            dna=self.dna_engine.dna,
+        )
+        self._sync_narrative_from_self_model()
+        self._sync_beliefs_from_self_model()
         if trigger_governance:
             self.run_governance_cycle()
         return record
@@ -283,6 +437,10 @@ class BrainMemoryRuntime:
         state_metrics = self.state.get_stability_metrics()
         return {
             "cognitive_state": self.state.get_full_state(),
+            "working_self": self.working_self.to_dict(),
+            "self_model": self.self_model.to_dict(),
+            "predictive": self.predictive.to_dict(),
+            "runtime_mode": self.runtime_mode,
             "stability_metrics": {
                 **state_metrics,
                 **dna_metrics,

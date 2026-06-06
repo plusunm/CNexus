@@ -8,6 +8,10 @@ from typing import Optional
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("BRAIN_MEMORY_ROOT", str(ROOT))
+os.environ.setdefault(
+    "BM_MEMORY_DIR",
+    str(Path(os.environ.get("ProgramData", "C:/ProgramData")) / "brain-memory-g1" / "data"),
+)
 
 from brain_memory import BrainMemoryRuntime
 from core.llm_client import LLMClient

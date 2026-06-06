@@ -50,3 +50,25 @@ Maintain narrative coherence and identity continuity in all responses."""
 
     def get_current_narrative_summary(self) -> str:
         return self.narrative.identity_summary
+
+    def update_from_interaction(
+        self,
+        user_input: str,
+        assistant_output: str,
+        *,
+        importance: float = 0.6,
+        reflection: str = "",
+    ) -> None:
+        """Autobiographical self-model update from a full interaction turn."""
+        thread = f"User: {user_input[:120]} → Self: {assistant_output[:120]}"
+        if reflection:
+            thread += f" | Reflection: {reflection[:100]}"
+        self.update_from_memory(thread, importance=importance)
+        if any(k in user_input for k in ("目标", "身份", "相信")):
+            self.narrative.narrative_coherence_score = min(
+                1.0, self.narrative.narrative_coherence_score + 0.01
+            )
+        if reflection and "误差" in reflection:
+            self.narrative.narrative_coherence_score = max(
+                0.5, self.narrative.narrative_coherence_score - 0.02
+            )
