@@ -1,0 +1,38 @@
+{
+  "version": "5.0.0",
+  "embedding_model": "nomic-embed-text",
+  "llm_model": "llama3.2",
+  "ollama_host": "http://localhost:11434",
+  "vector_dim": 768,
+  "recall_top_k": 12,
+  "importance_threshold": 0.48,
+  "write_gate_threshold": 0.45,
+  "attention_half_life_hours": 4.0,
+  "forget_alpha": 0.85,
+  "enable_multi_hop": true,
+  "enable_metabolic": true,
+  "auto_capture": true,
+  "auto_recall": true,
+  "personality": {
+    "dna": {
+      "curiosity": 0.78,
+      "emotional_stability": 0.85
+    },
+    "narrative": {
+      "auto_update": true,
+      "max_timeline_events": 50
+    }
+  },
+  "governance": {
+    "drift_warning_threshold": 0.18,
+    "drift_critical_threshold": 0.45,
+    "max_entropy": 0.65,
+    "governance_interval_hours": 6
+  },
+  "safety": {
+    "write_gate_threshold": 0.65,
+    "mutation_max_daily_delta": 0.012,
+    "constitution_enforcement": true,
+    "audit_enabled": true
+  }
+}
