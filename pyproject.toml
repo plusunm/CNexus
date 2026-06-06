@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "brain-memory"
-version = "5.0.0"
-description = "Persistent Cognitive Runtime for AI Agents"
+name = "brain-memory-g1"
+version = "1.0.0"
+description = "Persistent Cognitive Runtime for Long-Lived AI Agents (G1)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

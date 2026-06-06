@@ -1,6 +1,6 @@
 param(
     [string]$User = "plusunm",
-    [string]$Repo = "brain-memory",
+    [string]$Repo = "brain-memory-g1",
     [switch]$CreateRelease
 )
 

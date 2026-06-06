@@ -1,5 +1,5 @@
 {
-  "version": "5.0.0",
+  "version": "1.0.0-g1",
   "embedding_model": "nomic-embed-text",
   "llm_model": "llama3.2",
   "ollama_host": "http://localhost:11434",
