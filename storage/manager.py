@@ -60,9 +60,35 @@ class UnifiedStorageManager:
 
         return memory_id
 
-    def recall(self, query: str, top_k: int = 12, layer: Optional[str] = None) -> List[Dict]:
-        embedding = self._get_embedding(query)
-        return self.vector.search_memory(embedding, top_k=top_k, layer=layer)
+    def recall(
+        self,
+        query: str,
+        top_k: int = 12,
+        layer: Optional[str] = None,
+        min_importance: float = 0.0,
+    ) -> List[Dict]:
+        if not query or not query.strip():
+            return []
+
+        embedding = self._get_embedding(query.strip())
+        results = self.vector.search_memory(
+            embedding, top_k=top_k, layer=layer, min_importance=min_importance
+        )
+
+        now = datetime.now().isoformat()
+        for r in results:
+            mid = r.get("memory_id")
+            if mid:
+                self.vector.update_memory(
+                    mid,
+                    {
+                        "access_count": int(r.get("access_count", 0)) + 1,
+                        "last_accessed_at": now,
+                    },
+                )
+                r["access_count"] = int(r.get("access_count", 0)) + 1
+
+        return results
 
     def promote_memory(self, memory_id: str, new_layer: str):
         self.vector.update_memory(memory_id, {"layer": new_layer})

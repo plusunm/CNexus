@@ -82,6 +82,13 @@ class CognitiveStateManager:
             "history_length": len(self.history),
         }
 
+    def sync_from_attention(self, working_memory: List[Dict]):
+        """将注意力场变化同步到全局认知状态"""
+        scores = [m.get("attention_score", 0.5) for m in working_memory]
+        if scores:
+            self.calculate_attention_entropy(scores)
+        self.update_cognitive_load(min(1.0, len(working_memory) / 9.0))
+
     def get_stability_metrics(self) -> Dict[str, float]:
         return {
             "attention_entropy": self.attention_entropy,

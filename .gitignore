@@ -12,10 +12,18 @@ env/
 
 # Runtime data
 memory/lancedb/
+memory/kuzu_db
 memory/kuzu_db/
+memory/kuzu_db.*
 memory/test_kuzu_db/
+config/models.local.json
+memory/reflective/
 logs/
 *.log
+
+# Node
+node_modules/
+.next/
 
 # IDE / OS
 .idea/

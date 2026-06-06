@@ -1,9 +1,12 @@
 from datetime import datetime
 
+from typing import Optional
+
 from core.governance.stability_types import DriftReport
 from core.personality.belief.belief_engine import BeliefEngine
 from core.personality.dna_engine import PersonalityDNAEngine
 from core.personality.narrative.narrative_builder import NarrativeBuilder
+from core.personality.reflective.reflection_pipeline import ReflectionPipeline
 
 
 class DriftDetector:
@@ -14,10 +17,12 @@ class DriftDetector:
         dna: PersonalityDNAEngine,
         narrative: NarrativeBuilder,
         belief: BeliefEngine,
+        reflection: Optional[ReflectionPipeline] = None,
     ):
         self.dna = dna
         self.narrative = narrative
         self.belief = belief
+        self.reflection = reflection
         self.baseline = None
         self.last_check = datetime.now()
 
@@ -26,6 +31,7 @@ class DriftDetector:
             "dna": self.dna.dna.model_dump(),
             "narrative_version": self.narrative.narrative.version,
             "belief_count": len(self.belief.graph.beliefs),
+            "reflection_count": len(self.reflection.records) if self.reflection else 0,
         }
 
     def detect(self) -> DriftReport:
@@ -42,10 +48,17 @@ class DriftDetector:
             self.narrative.narrative.version - self.baseline["narrative_version"]
         ) / max(1, days)
 
+        reflection_delta = 0.0
+        if self.reflection:
+            reflection_delta = abs(
+                len(self.reflection.records) - self.baseline.get("reflection_count", 0)
+            ) / max(1, days)
+
         drift_score = (
-            dna_delta * 0.4
-            + narrative_delta * 0.35
-            + (len(self.belief.graph.beliefs) - self.baseline["belief_count"]) * 0.25
+            dna_delta * 0.35
+            + narrative_delta * 0.30
+            + (len(self.belief.graph.beliefs) - self.baseline["belief_count"]) * 0.20
+            + reflection_delta * 0.15
         )
 
         severity = (
@@ -73,7 +86,8 @@ class DriftDetector:
             drift_score=min(1.0, max(0.0, drift_score)),
             drift_type="multi_component" if drift_score > 0.4 else "personality",
             severity=severity,
-            affected_components=["dna", "narrative", "belief"],
+            affected_components=["dna", "narrative", "belief"]
+            + (["reflection"] if self.reflection else []),
             recommended_action=action,
             confidence=0.85,
         )

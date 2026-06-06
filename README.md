@@ -64,44 +64,78 @@ Foundation Model
 Agent Runtime
     ↓
 Brain-Memory Cognitive Runtime
-    ├── Memory Infrastructure
-    ├── Personality Continuity
-    ├── Stability Governance
-    ├── Constitutional Safety
+    ├── Layer 1 — Memory Infrastructure (LanceDB + Kuzu)
+    ├── Layer 2 — Cognitive Runtime (router, attention, context, state)
+    ├── Layer 3 — Personality Continuity (DNA, narrative, belief)
+    ├── Layer 3.5 — Reflective Continuity (trait reflection → narrative + belief loop)
+    ├── Layer 4 — Stability Governance (drift, anchoring, write gate)
     └── Validation & Observability
 ```
 
 ---
 
-## Vision
-
-Enable AI systems to maintain:
-
-* identity continuity
-* cognitive stability
-* consistent beliefs
-* coherent narrative self
-* long-term relational memory
-
-while still allowing slow, governed evolution.
-
----
-
 ## Quick Start
+
+### Python Runtime (recommended entry)
 
 ```bash
 pip install -r requirements.txt
+# or: pip install .
 ollama pull nomic-embed-text   # optional; falls back to zero-vector if unavailable
 ```
 
 ```python
-from brain_memory import BrainMemoryRuntime
+from brain_memory import create_runtime
 
-runtime = BrainMemoryRuntime(project_root=".")
+runtime = create_runtime(project_root=".")
 runtime.capture("user", "I want to build a stable long-lived AI agent", layer="goal")
 print(runtime.recall("What is my long-term goal?"))
+runtime.trait_based_reflection("I tend to confuse feelings with facts", ["subjectivity"])
 print(runtime.run_governance_cycle())
 ```
+
+CLI:
+
+```bash
+python -m brain_memory status --root .
+python -m brain_memory governance --root . --json
+```
+
+### Web UI (`brain-memory-ui`)
+
+```bash
+# Terminal 1 — API (:8000)
+cd brain-memory-ui
+set PYTHONPATH=<project-root>          # Windows
+export PYTHONPATH=<project-root>       # Linux/macOS
+python -m api.main
+
+# Terminal 2 — Frontend (:3000)
+cd brain-memory-ui/frontend
+npm install && npm run dev
+```
+
+Open http://localhost:3000 for dashboard, chat, memory browser, and model configuration.
+
+> Legacy single-server UI (`python scripts/run_ui.py` on :8080) is deprecated; use `brain-memory-ui` instead.
+
+---
+
+## Layer 3.5 — Reflective Continuity
+
+The reflective pipeline closes the **Subject Continuity** loop:
+
+1. Detect traits from interaction content
+2. Generate inner thought + cultivation actions
+3. Persist to long-term memory and `ReflectiveMemoryStore`
+4. Update **Narrative Self** and **Belief Graph**
+5. Feed stability metrics back into governance
+
+---
+
+## Vision
+
+Enable AI systems to maintain identity continuity, cognitive stability, consistent beliefs, coherent narrative self, and long-term relational memory — while still allowing slow, governed evolution.
 
 ---
 

@@ -1,0 +1,4 @@
+# Brain-Memory UI API (install core deps from repo root)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+websockets>=12.0

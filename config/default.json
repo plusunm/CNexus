@@ -5,6 +5,7 @@
   "ollama_host": "http://localhost:11434",
   "vector_dim": 768,
   "recall_top_k": 12,
+  "governance_interval_seconds": 3600,
   "importance_threshold": 0.48,
   "write_gate_threshold": 0.45,
   "attention_half_life_hours": 4.0,

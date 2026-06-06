@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Tuple
+import uuid
 
 from core.governance.safety.safety_types import SafetyAuditRecord
 from memory.schema import Memory
@@ -10,6 +11,20 @@ class MemoryWriteGate:
 
     def __init__(self):
         self.audit_log: List[SafetyAuditRecord] = []
+
+    def validate_content(self, content: str, role: str = "user", importance: float = 0.5) -> bool:
+        """轻量内容校验 — Facade 快捷入口"""
+        memory = Memory(
+            memory_id=str(uuid.uuid4()),
+            role=role,
+            content=content,
+            layer="episodic",
+            importance=importance,
+            timestamp=datetime.now(),
+            last_accessed_at=datetime.now(),
+        )
+        allowed, _, _ = self.validate(memory)
+        return allowed
 
     def validate(self, memory: Memory) -> Tuple[bool, str, float]:
         risk_score = 0.0

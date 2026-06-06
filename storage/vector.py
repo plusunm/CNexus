@@ -36,21 +36,29 @@ class LanceMemoryStore:
         self._init_table()
 
     def _init_table(self):
-        table_names = self.db.list_tables() if hasattr(self.db, "list_tables") else self.db.table_names()
-        if self.table_name not in table_names:
-            sample = _memory_to_row(
-                Memory(
-                    memory_id=str(uuid.uuid4()),
-                    role="system",
-                    content="init placeholder record",
-                    layer="episodic",
-                    importance=0.0,
-                    embedding=[0.0] * 768,
-                )
-            )
-            self.table = self.db.create_table(self.table_name, data=[sample])
-        else:
+        try:
             self.table = self.db.open_table(self.table_name)
+            return
+        except Exception:
+            pass
+
+        sample = _memory_to_row(
+            Memory(
+                memory_id=str(uuid.uuid4()),
+                role="system",
+                content="init placeholder record",
+                layer="episodic",
+                importance=0.0,
+                embedding=[0.0] * 768,
+            )
+        )
+        try:
+            self.table = self.db.create_table(self.table_name, data=[sample])
+        except ValueError as exc:
+            if "already exists" in str(exc).lower():
+                self.table = self.db.open_table(self.table_name)
+            else:
+                raise
 
     def insert_memory(self, memory: Memory) -> str:
         self.table.add([_memory_to_row(memory)])
@@ -69,7 +77,10 @@ class LanceMemoryStore:
         query = self.table.search(query_embedding)
         if layer:
             query = query.where(f"layer = '{layer}'")
-        results = query.limit(top_k * 3).to_list()
+        if min_importance > 0:
+            query = query.where(f"importance >= {min_importance}")
+
+        results = query.limit(top_k * 4).to_list()
 
         now = datetime.now()
         scored = []

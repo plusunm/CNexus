@@ -20,7 +20,7 @@ class NarrativeBuilder:
 
     def update_from_memory(self, memory_content: str, importance: float = 0.6) -> bool:
         if "目标" in memory_content or "长期" in memory_content:
-            if "构建稳定" in memory_content or "人格" in memory_content:
+            if any(k in memory_content for k in ("构建稳定", "人格", "身份连续", "身份连续性")):
                 goal = "Maintain stable identity and cognitive continuity"
                 if goal not in self.narrative.long_term_goals:
                     self.narrative.long_term_goals.append(goal)

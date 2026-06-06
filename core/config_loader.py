@@ -1,7 +1,9 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+
+_config_instance: Optional["ConfigLoader"] = None
 
 
 class ConfigLoader:
@@ -9,6 +11,19 @@ class ConfigLoader:
         self.base_path = Path(base_path)
         self.config: Dict[str, Any] = {}
         self.load()
+
+    @classmethod
+    def get_instance(cls, base_path: str = "config") -> "ConfigLoader":
+        global _config_instance
+        if _config_instance is None or str(_config_instance.base_path) != str(Path(base_path)):
+            _config_instance = cls(base_path)
+        return _config_instance
+
+    @classmethod
+    def reload(cls, base_path: str = "config") -> "ConfigLoader":
+        global _config_instance
+        _config_instance = cls(base_path)
+        return _config_instance
 
     def load(self) -> Dict[str, Any]:
         default_file = self.base_path / "default.json"
