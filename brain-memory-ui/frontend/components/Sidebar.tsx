@@ -7,6 +7,7 @@ const links = [
   { href: "/chat", label: "对话" },
   { href: "/memory", label: "记忆" },
   { href: "/models", label: "模型" },
+  { href: "/logs", label: "运行日志" },
 ];
 
 export function Sidebar({ apiOnline }: { apiOnline: boolean }) {

@@ -12,6 +12,15 @@ export type ModelProfile = {
   enabled: boolean;
 };
 
+export type RuntimeLogEntry = {
+  id: string;
+  timestamp: string;
+  level: "info" | "debug" | "warn" | "error" | string;
+  category: string;
+  message: string;
+  meta?: Record<string, unknown>;
+};
+
 export type RuntimeState = {
   stability_metrics: Record<string, number>;
   narrative: { summary: string; coherence: number; version: number };
@@ -62,6 +71,18 @@ export const brainApi = {
   state: () => request<RuntimeState>("/governance/state"),
 
   governance: () => request<Record<string, unknown>>("/governance/cycle", { method: "POST" }),
+
+  logs: (limit = 100) =>
+    request<{ logs: RuntimeLogEntry[]; count: number }>(`/logs?limit=${limit}`),
+
+  clearLogs: () => request<{ ok: boolean }>("/logs", { method: "DELETE" }),
+
+  connectLogStream: (onEntry: (entry: RuntimeLogEntry) => void) => {
+    const ws = new WebSocket(`${WS_BASE}/logs/ws`);
+    ws.onmessage = (e) => onEntry(JSON.parse(e.data));
+    ws.onerror = () => ws.close();
+    return ws;
+  },
 
   connectStateStream: (onUpdate: (state: RuntimeState) => void) => {
     const ws = new WebSocket(`${WS_BASE}/ws/state`);

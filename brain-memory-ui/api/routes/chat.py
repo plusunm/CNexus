@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from api.deps import get_llm, get_registry, get_runtime
+from api.runtime_log import runtime_log
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -23,7 +24,11 @@ async def chat(req: ChatRequest):
         raise HTTPException(400, "No model configured")
 
     runtime = get_runtime()
+    runtime_log("info", "chat", "Incoming message", preview=req.message[:80], use_memory=req.use_memory)
+
     memory_context = runtime.recall(req.message) if req.use_memory else ""
+    if req.use_memory:
+        runtime_log("debug", "recall", "Memory context assembled", query=req.message[:60], chars=len(memory_context))
 
     system = "You are a long-lived AI powered by Brain-Memory G1.\n"
     if memory_context:
@@ -37,6 +42,7 @@ async def chat(req: ChatRequest):
     try:
         reply = get_llm().chat(profile, messages, temperature=req.temperature)
     except Exception as exc:
+        runtime_log("error", "chat", "LLM call failed", error=str(exc))
         raise HTTPException(502, str(exc)) from exc
 
     capture = {}
@@ -45,6 +51,9 @@ async def chat(req: ChatRequest):
             "user": runtime.capture("user", req.message, importance=0.65),
             "assistant": runtime.capture("assistant", reply, importance=0.55),
         }
+        runtime_log("info", "capture", "Chat memories stored", user_id=str(capture.get("user"))[:20])
+
+    runtime_log("info", "chat", "Reply sent", model=profile.name, reply_len=len(reply))
 
     return {
         "reply": reply,

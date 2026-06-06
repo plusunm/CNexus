@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Query
 
 from api.deps import get_runtime
+from api.runtime_log import runtime_log
+
 router = APIRouter(prefix="/governance", tags=["governance"])
 
 
@@ -11,7 +13,11 @@ async def current_state():
 
 @router.post("/cycle")
 async def governance_cycle():
-    return get_runtime().run_governance_cycle()
+    runtime_log("info", "governance", "Running stability cycle")
+    report = get_runtime().run_governance_cycle()
+    score = report.get("stability_metrics", {}).get("overall_stability_score")
+    runtime_log("info", "governance", "Cycle complete", stability=score)
+    return report
 
 
 @router.post("/validate")

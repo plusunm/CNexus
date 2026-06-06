@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent))
 sys.path.insert(0, str(ROOT))
 
-from api.routes import chat, governance, memory, models, reflective  # noqa: E402
+from api.routes import chat, governance, logs, memory, models, reflective  # noqa: E402
+from api.runtime_log import runtime_log  # noqa: E402
 from api.websocket import router as ws_router  # noqa: E402
 
 app = FastAPI(
@@ -33,7 +34,13 @@ app.include_router(memory.router)
 app.include_router(chat.router)
 app.include_router(models.router)
 app.include_router(governance.router)
+app.include_router(logs.router)
 app.include_router(ws_router)
+
+
+@app.on_event("startup")
+async def on_startup():
+    runtime_log("info", "system", "Brain-Memory G1 API started", port=8000, mode="g2")
 
 
 @app.get("/health")

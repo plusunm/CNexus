@@ -119,6 +119,19 @@ Open http://localhost:3000 for dashboard, chat, memory browser, and model config
 
 > Legacy single-server UI (`python scripts/run_ui.py` on :8080) is deprecated; use `brain-memory-ui` instead.
 
+### Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [docs/QUICKSTART.md](docs/QUICKSTART.md) | **Daily use**, **dev integration**, and **deployment** (English) |
+| [docs/QUICKSTART.zh.md](docs/QUICKSTART.zh.md) | Same guides in Chinese |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layered cognitive architecture |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment notes |
+
+One-shot Windows bootstrap: `powershell -ExecutionPolicy Bypass -File scripts/load_g1.ps1`
+
+Import Cursor chat history: `python scripts/import_chat_transcript.py <transcript.jsonl> --root .`
+
 ---
 
 ## Layer 3.5 — Reflective Continuity
