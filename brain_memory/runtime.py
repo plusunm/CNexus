@@ -19,6 +19,8 @@ from core.validation.validation_orchestrator import StabilityValidationOrchestra
 from memory.filter import CaptureFilter
 from memory.schema import Memory
 from runtime.attention import DynamicAttentionField
+from runtime.cognitive_apply import process_parsed_state
+from runtime.cognitive_parser import CognitiveStateParser, IdentitySummaryScheduler
 from runtime.context import ContextAssemblyEngine
 from runtime.router import HierarchicalRecallRouter
 from runtime.state import CognitiveStateManager
@@ -58,6 +60,8 @@ class BrainMemoryRuntime:
         # Layer 2 — Cognitive Runtime
         self.attention = DynamicAttentionField()
         self.state = CognitiveStateManager()
+        self.cognitive_parser = CognitiveStateParser(llm_hook=None)
+        self.identity_scheduler = IdentitySummaryScheduler(interval_turns=5, dissonance_threshold=0.65)
         self.router = HierarchicalRecallRouter(self.storage)
         self.context_engine = ContextAssemblyEngine(self.attention)
 
@@ -174,7 +178,53 @@ class BrainMemoryRuntime:
         if importance > 0.75:
             self.belief_engine.add_or_update_belief(content, confidence=importance, source_memory_id=mid)
 
+        if role == "user":
+            self._apply_cognitive_state(content, layer=layer, importance=importance)
+
         return mid
+
+    def _apply_cognitive_state(self, user_input: str, *, layer: str, importance: float) -> Dict[str, Any]:
+        """Rule-first cognitive parse; LLM only when parser opts in (hook not set by default)."""
+        current_beliefs = dict(self.narrative.narrative.persistent_beliefs)
+        parsed = self.cognitive_parser.parse_cognitive_state(
+            user_input,
+            layer=layer,
+            importance=importance,
+            current_beliefs=current_beliefs,
+        )
+        return process_parsed_state(
+            parsed,
+            narrative=self.narrative,
+            belief_engine=self.belief_engine,
+            state=self.state,
+            scheduler=self.identity_scheduler,
+        )
+
+    def parse_cognitive_state(
+        self,
+        user_input: str,
+        *,
+        layer: str = "episodic",
+        importance: float = 0.5,
+        apply: bool = True,
+    ) -> Dict[str, Any]:
+        """Public API — inspect or apply cognitive state deltas from user input."""
+        parsed = self.cognitive_parser.parse_cognitive_state(
+            user_input,
+            layer=layer,
+            importance=importance,
+            current_beliefs=dict(self.narrative.narrative.persistent_beliefs),
+        )
+        result = parsed.__dict__
+        if apply:
+            result["applied"] = process_parsed_state(
+                parsed,
+                narrative=self.narrative,
+                belief_engine=self.belief_engine,
+                state=self.state,
+                scheduler=self.identity_scheduler,
+            )
+        return result
 
     def recall(self, query: str, top_k: Optional[int] = None) -> str:
         top_k = top_k or self.recall_top_k

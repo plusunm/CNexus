@@ -21,6 +21,7 @@ class NarrativeSelf(BaseModel):
     long_term_goals: List[str] = Field(default_factory=list)
     persistent_beliefs: Dict[str, float] = Field(default_factory=dict)
     relationship_status: Dict[str, str] = Field(default_factory=dict)
+    relationship_scores: Dict[str, float] = Field(default_factory=lambda: {"user": 0.55})
     key_milestones: List[IdentityTimelineEvent] = Field(default_factory=list)
     version: int = 1
     last_updated: datetime = Field(default_factory=datetime.now)
