@@ -1,12 +1,12 @@
 {
-  "snapshot_version": "GTBS / G1 L2.5 COMPLETE",
+  "snapshot_version": "CNexus L2.5 COMPLETE",
   "git_tag": "gtbs-snapshot-v0.3-l2.5",
   "date": "2026-06-10",
   "state": "Observational → Structural Inference Phase",
   "governance_status": "NONE (instrumentation-only for L2/L2.5)",
   "repository": {
-    "primary": "https://github.com/plusunm/brain-memory-g1.git",
-    "snapshot_mirror": "https://github.com/plusunm/CNexus"
+    "primary": "https://github.com/plusunm/CNexus",
+    "platform": "CNexus"
   },
   "layer_classification": {
     "L2_v0.1": {

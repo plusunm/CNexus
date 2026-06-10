@@ -1,10 +1,10 @@
-"""FastAPI endpoints for Brain-Memory v5.0 (optional)."""
+"""FastAPI endpoints for CNexus (optional)."""
 
 try:
     from fastapi import FastAPI
     from pydantic import BaseModel
 
-    app = FastAPI(title="Brain-Memory v5.0 API")
+    app = FastAPI(title="CNexus API")
     _runtime = None
 
     class CaptureRequest(BaseModel):

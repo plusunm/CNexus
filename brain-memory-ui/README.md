@@ -1,6 +1,6 @@
-# Brain-Memory UI
+# CNexus UI
 
-**Brain-Memory G1 的可视化与交互层** — 与核心 Runtime 解耦，支持 Web / Desktop / Mobile 多端。
+**CNexus 的可视化与交互层** — 与核心 Runtime 解耦，支持 Web / Desktop / Mobile 多端。
 
 ## 架构
 
@@ -20,8 +20,7 @@
 └─────────────────────┼──────────────────────────────────┘
                       │
               ┌───────▼────────┐
-              │ Brain-Memory   │
-              │ G1 Core        │  (brain_memory/)
+              │ CNexus Core    │  (brain_memory/)
               └────────────────┘
 ```
 

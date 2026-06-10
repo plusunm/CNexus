@@ -26,6 +26,23 @@ class RecallResponse(BaseModel):
     context: str
 
 
+class MemoryStatsResponse(BaseModel):
+    total: int
+    by_layer: dict
+    avg_importance: float
+    avg_decay_factor: float
+    high_access_count: int
+
+
+class MaintenanceResponse(BaseModel):
+    decayed: int
+    forgotten: int
+    evicted_capacity: int
+    capped_access: int
+    remaining: int
+    details: list
+
+
 @router.post("/capture", response_model=CaptureResponse)
 async def capture(data: CaptureRequest):
     result = get_runtime().capture(
@@ -43,3 +60,25 @@ async def recall(query: str):
     ctx = get_runtime().recall(query)
     runtime_log("debug", "recall", "Recall query", query=query[:60], chars=len(ctx))
     return RecallResponse(context=ctx)
+
+
+@router.get("/stats", response_model=MemoryStatsResponse)
+async def memory_stats():
+    stats = get_runtime().memory_stats()
+    runtime_log("info", "memory_mgmt", "Stats collected", total=stats.get("total", 0))
+    return MemoryStatsResponse(**stats)
+
+
+@router.post("/maintenance", response_model=MaintenanceResponse)
+async def memory_maintenance(force: bool = False):
+    report = get_runtime().run_memory_maintenance(force=force)
+    if report.get("skipped"):
+        raise HTTPException(400, report.get("reason", "metabolic disabled"))
+    runtime_log(
+        "info",
+        "memory_mgmt",
+        "Maintenance complete",
+        forgotten=report.get("forgotten", 0),
+        remaining=report.get("remaining", 0),
+    )
+    return MaintenanceResponse(**report)

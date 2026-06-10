@@ -1,5 +1,5 @@
 """
-Brain-Memory G1 — Persistent Cognitive Runtime v1.0.0-g1
+CNexus — Persistent Cognitive Runtime
 
 Stability-First cognitive continuity infrastructure for long-lived AI agents.
 """

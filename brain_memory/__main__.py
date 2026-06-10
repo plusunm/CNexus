@@ -8,7 +8,7 @@ from brain_memory import __version__, create_runtime
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="brain-memory", description="Brain-Memory G1 CLI")
+    parser = argparse.ArgumentParser(prog="cnexus", description="CNexus CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
     status_p = sub.add_parser("status", help="Print full runtime status (JSON)")
@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
         else:
             score = report["stability_metrics"]["overall_stability_score"]
-            print(f"Brain-Memory G1 v{__version__} — stability score: {score:.3f}")
+            print(f"CNexus v{__version__} — stability score: {score:.3f}")
 
     return 0
 

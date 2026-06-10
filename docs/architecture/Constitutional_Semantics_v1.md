@@ -1,7 +1,7 @@
-# Brain-Memory G1 — Constitutional Semantics v1.0
+# CNexus — Constitutional Semantics v1.0
 
 **Status:** FROZEN  
-**Product line:** Brain-Memory G1 (`1.0.0-g1`) — Cognitive Sidecar  
+**Product line:** CNexus — Observational Cognition Platform  
 **Effective:** 2026-06-10
 
 ---
@@ -10,11 +10,11 @@
 
 **English:**
 
-> Brain-Memory G1 is a multi-store epistemic governance sidecar with advisory control, projection audit, and emerging transaction boundaries.
+> CNexus is a multi-store epistemic governance sidecar with advisory control, projection audit, and emerging transaction boundaries.
 
 **中文:**
 
-> Brain-Memory G1 是一个多存储认知治理 sidecar：runtime 持有现实写权限；CDG 提供 advisory control；audit 是 projection；L7 是 post-hoc health observer；GTBS 正在逐步引入 transaction boundary。
+> CNexus 是一个多存储认知治理 sidecar：runtime 持有现实写权限；CDG 提供 advisory control；audit 是 projection；L7 是 post-hoc health observer；GTBS 正在逐步引入 transaction boundary。
 
 This document is the **semantic constitution**. Executable code must not be described beyond what these axioms allow.
 

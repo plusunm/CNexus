@@ -71,10 +71,10 @@ High reality-impact events recorded in `observability/frozen_anchors.jsonl`. App
 powershell -ExecutionPolicy Bypass -File scripts/run_staging.ps1
 
 # 2. After interactions, generate full Phase A report
-python scripts/phase_a_landscape_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging"
+python scripts/phase_a_landscape_report.py --base-dir "C:\ProgramData\cnexus\staging"
 
 # 3. Divergence-only quick report
-python scripts/gtbs_shadow_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging"
+python scripts/gtbs_shadow_report.py --base-dir "C:\ProgramData\cnexus\staging"
 ```
 
 ---

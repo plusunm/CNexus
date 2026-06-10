@@ -1,9 +1,9 @@
-# Brain-Memory G1 — lightweight mode (low CPU/RAM, no Ollama auto-start)
+# CNexus — lightweight mode (low CPU/RAM, no Ollama auto-start)
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/run_lite.ps1
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$DataDir = if ($env:BM_MEMORY_DIR) { $env:BM_MEMORY_DIR } else { "C:\ProgramData\brain-memory-g1\data" }
+$DataDir = if ($env:BM_MEMORY_DIR) { $env:BM_MEMORY_DIR } else { "C:\ProgramData\cnexus\data" }
 $UiRoot = Join-Path $ProjectRoot "brain-memory-ui"
 
 $env:BRAIN_MEMORY_ROOT = $ProjectRoot
@@ -12,7 +12,7 @@ $env:BM_MEMORY_DIR = $DataDir
 $env:BM_EMBEDDING_MODE = "hash"
 $env:BM_CONFIG = "config/lite.json"
 
-Write-Host "Brain-Memory G1 LITE" -ForegroundColor Cyan
+Write-Host "CNexus LITE" -ForegroundColor Cyan
 Write-Host "  hash embedding only (no Ollama)"
 Write-Host "  lite config: recall_top_k=6, multi_hop=off"
 Write-Host "  data: $DataDir"

@@ -1,6 +1,6 @@
 param(
     [string]$User = "plusunm",
-    [string]$Repo = "brain-memory-g1",
+    [string]$Repo = "CNexus",
     [switch]$CreateRelease
 )
 
@@ -32,7 +32,7 @@ if ($CreateRelease) {
     if (-not (Test-Path "dist/brain-memory-5.0.0.zip")) {
         python scripts/publish.py
     }
-    gh release create v5.0.0 dist/brain-memory-5.0.0.zip --title "Brain-Memory v5.0.0" --notes "Initial release of Brain-Memory v5.0 persistent cognitive runtime."
+    gh release create v5.0.0 dist/brain-memory-5.0.0.zip --title "CNexus v5.0.0" --notes "Initial release of CNexus persistent cognitive runtime."
     Write-Host "Release v5.0.0 created."
 }
 

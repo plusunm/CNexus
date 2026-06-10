@@ -1,9 +1,9 @@
-# Brain-Memory G1 — staging mode (GTBS shadow + capture pilot)
+# CNexus — staging mode (GTBS shadow + capture pilot)
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/run_staging.ps1
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$DataDir = if ($env:BM_MEMORY_DIR) { $env:BM_MEMORY_DIR } else { "C:\ProgramData\brain-memory-g1\staging" }
+$DataDir = if ($env:BM_MEMORY_DIR) { $env:BM_MEMORY_DIR } else { "C:\ProgramData\cnexus\staging" }
 $UiRoot = Join-Path $ProjectRoot "brain-memory-ui"
 
 $env:BRAIN_MEMORY_ROOT = $ProjectRoot
@@ -12,7 +12,7 @@ $env:BM_MEMORY_DIR = $DataDir
 $env:BM_EMBEDDING_MODE = "hash"
 $env:BM_CONFIG = "config/staging.json"
 
-Write-Host "Brain-Memory G1 STAGING" -ForegroundColor Cyan
+Write-Host "CNexus STAGING" -ForegroundColor Cyan
 Write-Host "  config: config/staging.json"
 Write-Host "  GTBS shadow: ON (persist to observability/gtbs_shadow.jsonl)"
 Write-Host "  GTBS capture pilot: ON (observability/gtbs_transactions.jsonl)"

@@ -1,17 +1,17 @@
-# Brain-Memory G1
+# CNexus
 
-**Persistent Cognitive Runtime for Long-Lived AI Agents**  
-**Stability-First AI Personality Continuity Infrastructure**
+**Observational Cognition Platform for Long-Lived AI Agents**  
+**Stability-First Continuity · Multi-Stream Semantic Inference**
 
 ---
 
-Brain-Memory G1 is a cognitive runtime designed to give stateless LLM agents persistent identity, long-term memory, narrative continuity, and governed personality evolution.
+CNexus is a cognitive runtime and observational cognition platform designed to give stateless LLM agents persistent identity, long-term memory, narrative continuity, and governed personality evolution — with a read-only L2 / L2.5 semantic stack over immutable observability streams.
 
-Unlike traditional memory systems that only store conversation history, Brain-Memory focuses on a deeper problem:
+Unlike traditional memory systems that only store conversation history, CNexus focuses on a deeper problem:
 
-> How can an AI remain the same evolving entity across long-term interaction?
+> How can an AI remain the same evolving entity across long-term interaction — while keeping cognition observable, interpretable, and non-actuating?
 
-The project introduces a Stability-First architecture that combines:
+The platform introduces a Stability-First architecture that combines:
 
 * Persistent Memory Infrastructure
 * Personality DNA
@@ -20,13 +20,14 @@ The project introduces a Stability-First architecture that combines:
 * Drift Detection
 * Identity Anchoring
 * Constitutional Safety
-* Long-Term Stability Validation
+* GTBS Observability + L2 Semantic Alignment (v0.1–v0.3 + L2.5)
 
-Brain-Memory separates:
+CNexus separates:
 
 * reasoning → handled by foundation models
 * execution → handled by agent runtimes
-* continuity → handled by cognitive runtime
+* continuity → handled by CNexus cognitive runtime
+* observational cognition → L2 / L2.5 interpretive layers (read-only)
 
 Its mission is not to make AI "smarter", but to make AI:
 
@@ -34,6 +35,7 @@ Its mission is not to make AI "smarter", but to make AI:
 * continuous
 * governable
 * persistent over time
+* structurally observable
 
 The system is designed for:
 
@@ -48,11 +50,13 @@ Core principle:
 
 > Stability over uncontrolled adaptation.
 
-Brain-Memory G1 represents a shift from:
+CNexus represents a shift from:
 
 * stateless inference  
   to  
-* persistent cognitive existence.
+* persistent cognitive existence with observational field cognition.
+
+**Repository:** [github.com/plusunm/CNexus](https://github.com/plusunm/CNexus)
 
 ---
 
@@ -63,13 +67,14 @@ Foundation Model
     ↓
 Agent Runtime
     ↓
-Brain-Memory Cognitive Runtime
+CNexus Cognitive Runtime
     ├── Layer 1 — Memory Infrastructure (LanceDB + Kuzu)
     ├── Layer 2 — Cognitive Runtime (router, attention, context, state)
     ├── Layer 3 — Personality Continuity (DNA, narrative, belief)
     ├── Layer 3.5 — Reflective Continuity (trait reflection → narrative + belief loop)
     ├── Layer 4 — Stability Governance (drift, anchoring, write gate)
-    └── Validation & Observability
+    ├── GTBS Observability (shadow / ecology / singularity streams)
+    └── L2 / L2.5 Semantic Stack (snapshot → temporal → fusion → attractor)
 ```
 
 ---
@@ -130,6 +135,8 @@ Open http://localhost:3000 for dashboard, chat, memory browser, and model config
 
 One-shot Windows bootstrap: `powershell -ExecutionPolicy Bypass -File scripts/load_g1.ps1`
 
+Staging (GTBS + L2 reports): `powershell -ExecutionPolicy Bypass -File scripts/run_staging.ps1`
+
 Import Cursor chat history: `python scripts/import_chat_transcript.py <transcript.jsonl> --root .`
 
 ---
@@ -148,19 +155,19 @@ The reflective pipeline closes the **Subject Continuity** loop:
 
 ## Vision
 
-Enable AI systems to maintain identity continuity, cognitive stability, consistent beliefs, coherent narrative self, and long-term relational memory — while still allowing slow, governed evolution.
+Enable AI systems to maintain identity continuity, cognitive stability, consistent beliefs, coherent narrative self, and long-term relational memory — while still allowing slow, governed evolution and read-only structural inference over observability streams.
 
 ---
 
 ## Keywords
 
-Persistent Cognition • Identity Stability • Narrative Continuity • Belief Governance • Cognitive Runtime • AI Personality Infrastructure • Stability Engineering
+CNexus • Persistent Cognition • Identity Stability • Narrative Continuity • Belief Governance • Cognitive Runtime • Observational Cognition • GTBS • L2 Semantic Alignment
 
 ---
 
 ## GTBS Snapshot Principles (L2 / L2.5 Freeze)
 
-> **This repository snapshot represents a purely observational cognition system.**
+> **This repository represents a purely observational cognition system.**
 
 It does **not** execute governance, mutation, or control logic through the L2 / L2.5 semantic stack.
 
@@ -175,7 +182,7 @@ All L2 / L2.5 modules are **interpretive layers** over immutable observability s
 This is a **structural freeze**, not a refactor.
 
 Snapshot documentation: [docs/snapshots/GTBS_SYSTEM_SNAPSHOT_v0.3.md](docs/snapshots/GTBS_SYSTEM_SNAPSHOT_v0.3.md)  
-Mirror repository: [plusunm/CNexus](https://github.com/plusunm/CNexus)  
+Platform repository: [plusunm/CNexus](https://github.com/plusunm/CNexus)  
 Tag: `gtbs-snapshot-v0.3-l2.5`
 
 ---

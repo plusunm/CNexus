@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("BRAIN_MEMORY_ROOT", str(ROOT))
 os.environ.setdefault(
     "BM_MEMORY_DIR",
-    str(Path(os.environ.get("ProgramData", "C:/ProgramData")) / "brain-memory-g1" / "data"),
+    str(Path(os.environ.get("ProgramData", "C:/ProgramData")) / "cnexus" / "data"),
 )
 
 from brain_memory import BrainMemoryRuntime

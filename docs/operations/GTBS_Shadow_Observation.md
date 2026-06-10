@@ -27,7 +27,7 @@ Or set environment:
 
 ```powershell
 $env:BM_CONFIG = "config/staging.json"
-$env:BM_MEMORY_DIR = "C:\ProgramData\brain-memory-g1\staging"
+$env:BM_MEMORY_DIR = "C:\ProgramData\cnexus\staging"
 python scripts/run_ui.py
 ```
 
@@ -58,16 +58,16 @@ These are **parallel observability streams**, not replacements for CDG cycle aud
 
 ```powershell
 # Divergence-only quick report:
-python scripts/gtbs_shadow_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging"
+python scripts/gtbs_shadow_report.py --base-dir "C:\ProgramData\cnexus\staging"
 
 # Full Phase A landscape report:
-python scripts/phase_a_landscape_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging"
+python scripts/phase_a_landscape_report.py --base-dir "C:\ProgramData\cnexus\staging"
 
 # Phase B weekly longitudinal report (record snapshot + report):
-python scripts/phase_b_weekly_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging" --record
+python scripts/phase_b_weekly_report.py --base-dir "C:\ProgramData\cnexus\staging" --record
 
 # Phase C monthly ecology report (record snapshot + report):
-python scripts/phase_c_monthly_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging" --record
+python scripts/phase_c_monthly_report.py --base-dir "C:\ProgramData\cnexus\staging" --record
 ```
 
 Fields of interest:

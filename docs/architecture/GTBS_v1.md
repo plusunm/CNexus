@@ -9,7 +9,7 @@
 
 ## 1. Purpose
 
-This spec defines the **proposal → approval → commit** boundary for all state mutations in Brain-Memory G1.
+This spec defines the **proposal → approval → commit** boundary for all state mutations in CNexus.
 
 GTBS v1.0 is **schema-only**. It does not intercept writes, does not modify CDG, and does not change runtime behavior.
 

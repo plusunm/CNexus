@@ -1,4 +1,4 @@
-# Brain-Memory G1 — Quick Start Guides
+# CNexus — Quick Start Guides
 
 Three practical paths: **daily use**, **development integration**, and **deployment for others**.
 
@@ -21,7 +21,7 @@ powershell -ExecutionPolicy Bypass -File scripts/load_g1.ps1
 # Linux / macOS — manual equivalent
 export BRAIN_MEMORY_ROOT="$(pwd)"
 export PYTHONPATH="$(pwd)"
-export BM_MEMORY_DIR="${BM_MEMORY_DIR:-/var/lib/brain-memory-g1/data}"
+export BM_MEMORY_DIR="${BM_MEMORY_DIR:-/var/lib/cnexus/data}"
 mkdir -p "$BM_MEMORY_DIR"
 
 cd brain-memory-ui && python -m api.main &   # :8000
@@ -30,7 +30,7 @@ cd brain-memory-ui/frontend && npm run dev   # :3000
 
 The bootstrap script will:
 
-- Use persistent data at `C:\ProgramData\brain-memory-g1\data` (Windows) or `$BM_MEMORY_DIR`
+- Use persistent data at `C:\ProgramData\cnexus\data` (Windows) or `$BM_MEMORY_DIR`
 - Start the API on `:8000` and the frontend on `:3000`
 - Fall back to hash embeddings if Ollama is unavailable (memory still works)
 
@@ -48,7 +48,7 @@ Open **http://localhost:3000** in your browser.
 **Common actions:**
 
 - On **Memory**, write a goal with `layer=goal` and high importance (0.8+)
-- Test recall: *"What did we do before?"*, *"What is brain-memory-g1?"*
+- Test recall: *"What did we do before?"*, *"What is CNexus?"*
 - On **Models** (`/models`), configure Ollama / OpenAI / DeepSeek, then use **Chat**
 
 ### Step 3 — Routine maintenance
@@ -136,7 +136,7 @@ reply = requests.post(f"{BASE}/chat", json={
 $body = @{ role="user"; content="Message from Cursor"; layer="episodic"; importance=0.7 } | ConvertTo-Json
 Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/memory/capture" -Body $body -ContentType "application/json"
 
-Invoke-RestMethod "http://127.0.0.1:8000/memory/recall?query=brain-memory-g1"
+Invoke-RestMethod "http://127.0.0.1:8000/memory/recall?query=CNexus"
 ```
 
 **Python SDK (offline scripts / tests only — do not write concurrently with the API):**
@@ -153,7 +153,7 @@ print(rt.recall("related question"))
 
 ```powershell
 cd <project-root>
-$env:BM_MEMORY_DIR = "C:\ProgramData\brain-memory-g1\data"
+$env:BM_MEMORY_DIR = "C:\ProgramData\cnexus\data"
 python scripts/import_chat_transcript.py `
   "<path-to>/agent-transcripts/<uuid>/<uuid>.jsonl" `
   --root "<project-root>"
@@ -164,7 +164,7 @@ Each imported turn:
 1. Calls `process_interaction()` to update the unified SelfModel
 2. Writes semantic / narrative memories
 
-**Cursor integration pattern:** treat Cursor as the reasoning layer and Brain-Memory G1 as the continuity layer — capture turns via `POST /memory/capture` or batch-import JSONL transcripts.
+**Cursor integration pattern:** treat Cursor as the reasoning layer and CNexus as the continuity layer — capture turns via `POST /memory/capture` or batch-import JSONL transcripts.
 
 ---
 
@@ -184,8 +184,8 @@ For LAN or server hosting so Web, mobile, and agents share one brain.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `BM_MEMORY_DIR` | Persistent data path (must be stable) | `C:\ProgramData\brain-memory-g1\data` |
-| `BRAIN_MEMORY_ROOT` | Project root | `/opt/brain-memory-g1` |
+| `BM_MEMORY_DIR` | Persistent data path (must be stable) | `C:\ProgramData\cnexus\data` |
+| `BRAIN_MEMORY_ROOT` | Project root | `/opt/cnexus` |
 | `BM_API_PORT` | API port | `8000` |
 | `BM_CORS_ORIGINS` | Allowed frontend origins | `http://192.168.1.10:3000,https://your.domain` |
 | `NEXT_PUBLIC_API_BASE` | Frontend → API URL | `http://192.168.1.10:8000` |
@@ -194,9 +194,9 @@ For LAN or server hosting so Web, mobile, and agents share one brain.
 **Production API (listens on all interfaces):**
 
 ```bash
-export BM_MEMORY_DIR=/var/lib/brain-memory-g1/data
-export BRAIN_MEMORY_ROOT=/opt/brain-memory-g1
-export PYTHONPATH=/opt/brain-memory-g1
+export BM_MEMORY_DIR=/var/lib/cnexus/data
+export BRAIN_MEMORY_ROOT=/opt/cnexus
+export PYTHONPATH=/opt/cnexus
 cd brain-memory-ui
 python -m api.main   # default 0.0.0.0:8000
 ```
@@ -266,6 +266,6 @@ cp -a "$BM_MEMORY_DIR" "/backup/brain-memory-$(date +%Y%m%d)"
 | Script integration | `POST/GET http://127.0.0.1:8000/memory/*` |
 | Import chat history | `scripts/import_chat_transcript.py` |
 | Share with others | Fixed `BM_MEMORY_DIR` + single API + `NEXT_PUBLIC_API_BASE` |
-| Repository | https://github.com/plusunm/brain-memory-g1 |
+| Repository | https://github.com/plusunm/CNexus |
 
 See also: [ARCHITECTURE.md](ARCHITECTURE.md) · [DEPLOYMENT.md](DEPLOYMENT.md)

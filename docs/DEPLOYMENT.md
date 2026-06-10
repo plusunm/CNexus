@@ -1,4 +1,4 @@
-# Brain-Memory v5.0 部署指南
+# CNexus 部署指南
 
 ## 1. 环境要求
 - Python 3.11+

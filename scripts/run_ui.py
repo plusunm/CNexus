@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch Brain-Memory G1 Web UI."""
+"""Launch CNexus Web UI."""
 
 import os
 import sys
@@ -14,5 +14,5 @@ if __name__ == "__main__":
 
     host = os.environ.get("BM_HOST", "127.0.0.1")
     port = int(os.environ.get("BM_PORT", "8080"))
-    print(f"\n  Brain-Memory G1 UI → http://{host}:{port}\n")
+    print(f"\n  CNexus UI → http://{host}:{port}\n")
     uvicorn.run("api.server:app", host=host, port=port, reload=False)

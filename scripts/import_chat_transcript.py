@@ -1,4 +1,4 @@
-"""Import Cursor agent transcript JSONL into Brain-Memory G1."""
+"""Import Cursor agent transcript JSONL into CNexus."""
 
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ def import_turns(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Import chat transcript into Brain-Memory G1")
+    parser = argparse.ArgumentParser(description="Import chat transcript into CNexus")
     parser.add_argument("transcript", type=Path, help="Path to agent transcript .jsonl")
     parser.add_argument("--root", type=Path, default=ROOT, help="Project root")
     args = parser.parse_args()

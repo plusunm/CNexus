@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 class BrainMemoryRuntime:
     """
-    Brain-Memory G1 — multi-store cognitive continuity facade.
+    CNexus — multi-store cognitive continuity facade.
 
     North star: multi-store cognition + projection governance + emerging
     transaction boundary (see Constitutional_Semantics_v1.md).
@@ -137,7 +137,7 @@ class BrainMemoryRuntime:
         self._gtbs_observer = None
         self._capture_boundary = None
         logger.info(
-            "Brain-Memory G1 v%s initialized — %s Cognitive Runtime",
+            "CNexus v%s initialized — %s Cognitive Runtime",
             "1.0.0-g1",
             self.runtime_mode.upper(),
         )

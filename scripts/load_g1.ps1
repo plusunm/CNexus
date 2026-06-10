@@ -1,9 +1,9 @@
-# Brain-Memory G1 — one-shot load (Windows)
+# CNexus — one-shot load (Windows)
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/load_g1.ps1
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$DataDir = "C:\ProgramData\brain-memory-g1\data"
+$DataDir = "C:\ProgramData\cnexus\data"
 $UiRoot = Join-Path $ProjectRoot "brain-memory-ui"
 
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
@@ -12,7 +12,7 @@ $env:BRAIN_MEMORY_ROOT = $ProjectRoot
 $env:PYTHONPATH = $ProjectRoot
 $env:BM_MEMORY_DIR = $DataDir
 
-Write-Host "Brain-Memory G1 bootstrap" -ForegroundColor Cyan
+Write-Host "CNexus bootstrap" -ForegroundColor Cyan
 Write-Host "  Project: $ProjectRoot"
 Write-Host "  Data:    $DataDir"
 
@@ -42,7 +42,7 @@ if ($ollama) {
 python -c @"
 from brain_memory import create_runtime
 rt = create_runtime(project_root=r'$ProjectRoot')
-mid = rt.capture('user', 'Brain-Memory G1 loaded successfully', layer='goal', importance=0.85)
+mid = rt.capture('user', 'CNexus loaded successfully', layer='goal', importance=0.85)
 print('runtime_ok', mid, 'data_dir', rt.base_dir)
 "@
 

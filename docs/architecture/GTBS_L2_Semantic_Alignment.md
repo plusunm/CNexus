@@ -132,21 +132,21 @@ machine metrics → human-readable continuity narrative
 ## Usage
 
 ```powershell
-python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging"
+python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\cnexus\staging"
 
 # Structured JSON (snapshot + narrative sections)
-python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging" --json
+python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\cnexus\staging" --json
 
 # L2 v0.2 temporal report (default 7-day window)
-python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging" --temporal --window-days 7
+python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\cnexus\staging" --temporal --window-days 7
 python scripts/semantic_alignment_report.py --base-dir "..." --temporal --json
 
 # L2 v0.3 cross-stream fusion (7-day window)
-python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging" --fusion --window-days 7
+python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\cnexus\staging" --fusion --window-days 7
 python scripts/semantic_alignment_report.py --base-dir "..." --fusion --json
 
 # L2 v0.5 latent attractor inference (7-day window)
-python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging" --attractor --window-days 7
+python scripts/semantic_alignment_report.py --base-dir "C:\ProgramData\cnexus\staging" --attractor --window-days 7
 python scripts/semantic_alignment_report.py --base-dir "..." --attractor --json
 ```
 

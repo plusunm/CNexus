@@ -1,4 +1,4 @@
-# Brain-Memory v5.0 架构文档
+# CNexus 架构文档
 
 ## 五层 + Validation 架构
 

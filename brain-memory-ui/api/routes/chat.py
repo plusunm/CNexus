@@ -30,7 +30,7 @@ async def chat(req: ChatRequest):
     if req.use_memory:
         runtime_log("debug", "recall", "Memory context assembled", query=req.message[:60], chars=len(memory_context))
 
-    system = "You are a long-lived AI powered by Brain-Memory G1.\n"
+    system = "You are a long-lived AI powered by CNexus.\n"
     if memory_context:
         system += f"\n--- Persistent Memory ---\n{memory_context}"
 

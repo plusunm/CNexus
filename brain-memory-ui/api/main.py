@@ -14,9 +14,9 @@ from api.runtime_log import runtime_log  # noqa: E402
 from api.websocket import router as ws_router  # noqa: E402
 
 app = FastAPI(
-    title="Brain-Memory G1 Runtime API",
-    description="Decoupled API for brain-memory-ui (Web / Desktop / Mobile)",
-    version="1.0.0-g1",
+    title="CNexus Runtime API",
+    description="Decoupled API for CNexus UI (Web / Desktop / Mobile)",
+    version="1.0.0",
 )
 
 origins = os.environ.get("BM_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
@@ -40,12 +40,12 @@ app.include_router(ws_router)
 
 @app.on_event("startup")
 async def on_startup():
-    runtime_log("info", "system", "Brain-Memory G1 API started", port=8000, mode="g2")
+    runtime_log("info", "system", "CNexus API started", port=8000, mode="g2")
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "brain-memory-ui-api", "version": "1.0.0-g1"}
+    return {"status": "ok", "service": "cnexus-ui-api", "version": "1.0.0"}
 
 
 if __name__ == "__main__":

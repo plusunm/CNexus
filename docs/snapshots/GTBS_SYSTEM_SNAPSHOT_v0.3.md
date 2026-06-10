@@ -1,6 +1,6 @@
-# GTBS / G1 System Snapshot — v0.3 (L2.5 Complete)
+# CNexus System Snapshot — v0.3 (L2.5 Complete)
 
-**Snapshot Version:** `GTBS / G1 L2.5 COMPLETE`  
+**Snapshot Version:** `CNexus L2.5 COMPLETE`  
 **Tag:** `gtbs-snapshot-v0.3-l2.5`  
 **Date:** 2026-06-10  
 **State:** Observational → Structural Inference Phase  
@@ -10,7 +10,7 @@
 
 ## 1. System phase definition
 
-This snapshot freezes Brain-Memory G1 at the completion of the GTBS observability + L2 semantic cognition stack through **L2.5 Latent Attractor Inference**.
+This snapshot freezes **CNexus** at the completion of the GTBS observability + L2 semantic cognition stack through **L2.5 Latent Attractor Inference**.
 
 | Layer | Version | Question answered |
 |-------|---------|-------------------|

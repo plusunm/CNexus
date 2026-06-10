@@ -4,7 +4,7 @@ from pathlib import Path
 
 def create_release_package():
     version = "1.0.0-g1"
-    package_name = f"brain-memory-g1-{version}"
+    package_name = f"cnexus-{version}"
     root = Path(__file__).resolve().parent.parent
     dist_dir = root / "dist" / package_name
 

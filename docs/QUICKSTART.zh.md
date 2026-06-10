@@ -1,4 +1,4 @@
-# Brain-Memory G1 — 上手指南
+# CNexus — 上手指南
 
 三份实用路径：**日常使用**、**开发集成**、**部署给他人**。
 
@@ -20,7 +20,7 @@ powershell -ExecutionPolicy Bypass -File scripts/load_g1.ps1
 
 脚本会自动：
 
-- 使用数据目录 `C:\ProgramData\brain-memory-g1\data`
+- 使用数据目录 `C:\ProgramData\cnexus\data`
 - 检测/启动 API（`:8000`）和前端（`:3000`）
 - Ollama 不可用时用 hash embedding 回退（记忆仍可用）
 
@@ -38,7 +38,7 @@ powershell -ExecutionPolicy Bypass -File scripts/load_g1.ps1
 **常用操作：**
 
 - 在「记忆」页写入目标：`layer=goal`，importance 设 0.8+
-- 召回测试：「我们之前做过什么」「brain-memory-g1 是什么」
+- 召回测试：「我们之前做过什么」「CNexus 是什么」
 - 在「模型」页配置 Ollama / OpenAI / DeepSeek，再使用「对话」
 
 ### 第 3 步：日常维护
@@ -131,4 +131,4 @@ python scripts/import_chat_transcript.py "<transcript.jsonl>" --root "<project-r
 | 日常打开 | `load_g1.ps1` → http://localhost:3000 |
 | 脚本接入 | `POST/GET /memory/*` |
 | 导入聊天 | `scripts/import_chat_transcript.py` |
-| GitHub | https://github.com/plusunm/brain-memory-g1 |
+| GitHub | https://github.com/plusunm/CNexus |

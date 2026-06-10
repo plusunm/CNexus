@@ -15,7 +15,7 @@ from core.model_registry import ModelProfile, ModelRegistry
 PROJECT_ROOT = Path(os.environ.get("BRAIN_MEMORY_ROOT", Path(__file__).resolve().parent.parent))
 WEB_DIR = PROJECT_ROOT / "web"
 
-app = FastAPI(title="Brain-Memory G1 UI", version="1.0.0-g1")
+app = FastAPI(title="CNexus UI", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -146,7 +146,7 @@ def chat(req: ChatRequest):
         memory_context = runtime.recall(req.message)
 
     system_parts = [
-        "You are a long-lived AI assistant powered by Brain-Memory G1.",
+        "You are a long-lived AI assistant powered by CNexus.",
         "Maintain identity continuity, belief consistency, and narrative coherence.",
     ]
     if memory_context:

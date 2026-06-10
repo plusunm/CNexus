@@ -71,10 +71,10 @@ Independent from: audit, shadow, transactions, frozen anchors, singularity metri
 
 ```powershell
 # Record snapshot + monthly report
-python scripts/phase_c_monthly_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging" --record
+python scripts/phase_c_monthly_report.py --base-dir "C:\ProgramData\cnexus\staging" --record
 
 # Report only
-python scripts/phase_c_monthly_report.py --base-dir "C:\ProgramData\brain-memory-g1\staging" --json
+python scripts/phase_c_monthly_report.py --base-dir "C:\ProgramData\cnexus\staging" --json
 ```
 
 Recommended cadence: **monthly** during long-horizon staging.

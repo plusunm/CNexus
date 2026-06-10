@@ -1,0 +1,31 @@
+---
+description: Single workspace root — CNexus at D:\类脑记忆\cursor
+alwaysApply: true
+---
+
+# Workspace Root
+
+**唯一工作路径：** `D:\类脑记忆\cursor`
+
+## Scope
+
+- 所有代码读写、审计、测试、git 操作默认仅在此目录内进行。
+- **平台仓库 remote：** `cnexus` → https://github.com/plusunm/CNexus
+- Runtime OS（`D:\plusunm\g1-pioneer`）为 **外部 sidecar**；仅当用户显式指定时才读写。
+- **不要**引用或修改 `D:\522\pipeline` 或其他路径，除非用户显式指定。
+
+## Git
+
+- 默认 push：`git push cnexus main`
+- 产品线：CNexus — Observational Cognition Platform
+
+## Dev
+
+- API/UI：`python scripts/run_ui.py`（默认 8080）
+- 解耦 API：`python -m uvicorn brain-memory-ui.api.main:app --reload --port 8081`
+- 测试：`python -m unittest discover -s tests -v`
+
+## Layer boundary
+
+- CNexus = cognitive continuity / memory topology / persona / observational cognition
+- 不得 mutate Runtime Kernel WAL/fold；接入 Triad 时仅 readonly projection 或 syscall request

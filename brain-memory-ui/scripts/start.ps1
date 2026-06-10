@@ -1,7 +1,7 @@
 $Root = Split-Path -Parent $PSScriptRoot
 $Core = Split-Path -Parent $Root
 
-Write-Host "Starting Brain-Memory UI..." -ForegroundColor Cyan
+Write-Host "Starting CNexus UI..." -ForegroundColor Cyan
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", @"
   cd '$Root'

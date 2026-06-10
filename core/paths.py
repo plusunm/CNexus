@@ -26,7 +26,7 @@ def _is_ascii_path(path: Path) -> bool:
 
 def _program_data_root(project_root: Path) -> Path:
     """ASCII data root; isolate by project path hash when needed."""
-    base = Path(os.environ.get("ProgramData", "C:/ProgramData")) / "brain-memory-g1" / "data"
+    base = Path(os.environ.get("ProgramData", "C:/ProgramData")) / "cnexus" / "data"
     if _is_ascii_path(project_root):
         return base
     suffix = hashlib.sha256(str(project_root.resolve()).encode("utf-8")).hexdigest()[:10]
@@ -40,7 +40,7 @@ def resolve_memory_dir(project_root: Path, base_dir: str = "memory") -> str:
     Priority:
     1. BM_MEMORY_DIR env (explicit override for production)
     2. project_root/base_dir when path is ASCII-safe
-    3. C:/ProgramData/brain-memory-g1/data[/hash] for Unicode project paths
+    3. C:/ProgramData/cnexus/data[/hash] for Unicode project paths
     """
     override = os.environ.get("BM_MEMORY_DIR")
     if override:

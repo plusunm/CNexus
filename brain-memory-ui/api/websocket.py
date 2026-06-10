@@ -48,7 +48,7 @@ async def chat_stream(websocket: WebSocket):
                 continue
 
             memory_context = runtime.recall(message) if use_memory else ""
-            system = "You are Brain-Memory G1 assistant. Maintain identity continuity.\n"
+            system = "You are CNexus assistant. Maintain identity continuity.\n"
             if memory_context:
                 system += f"\n--- Memory ---\n{memory_context}"
 
