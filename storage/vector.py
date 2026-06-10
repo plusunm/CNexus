@@ -114,3 +114,19 @@ class LanceMemoryStore:
 
     def delete_memory(self, memory_id: str):
         self.table.delete(f"memory_id = '{memory_id}'")
+
+    def count_rows(self) -> int:
+        try:
+            return int(self.table.count_rows())
+        except Exception:
+            return 0
+
+    def scan_memories(self, limit: Optional[int] = None) -> List[Dict]:
+        """Full table scan for maintenance (not hot-path recall)."""
+        try:
+            rows = self.table.to_arrow().to_pylist()
+        except Exception:
+            return []
+        if limit is not None:
+            return rows[:limit]
+        return rows

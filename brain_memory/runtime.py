@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -8,6 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 from core.config_loader import ConfigLoader
 from core.embedding import EmbeddingService
 from core.paths import get_project_root, resolve_memory_dir
+from core.governance.cdg import CDGKernel, apply_cdg_state, snapshot_cdg_state
 from core.governance.coordinator import StabilityCoordinator
 from core.governance.safety.policy_engine import GovernancePolicyEngine
 from core.personality.belief.belief_engine import BeliefEngine
@@ -19,6 +21,7 @@ from core.personality.reflective.reflective_store import ReflectiveMemoryStore
 from core.self_model import SelfModelStore
 from core.validation.validation_orchestrator import StabilityValidationOrchestrator
 from memory.filter import CaptureFilter
+from memory.lifecycle import MemoryLifecycleManager, MemoryManagementConfig
 from memory.schema import Memory
 from runtime.attention import DynamicAttentionField
 from runtime.cognitive_apply import process_parsed_state
@@ -36,7 +39,12 @@ logger = logging.getLogger(__name__)
 
 
 class BrainMemoryRuntime:
-    """Brain-Memory G1 — 全局统一 Facade 入口"""
+    """
+    Brain-Memory G1 — multi-store cognitive continuity facade.
+
+    North star: multi-store cognition + projection governance + emerging
+    transaction boundary (see Constitutional_Semantics_v1.md).
+    """
 
     def __init__(
         self,
@@ -47,6 +55,12 @@ class BrainMemoryRuntime:
         self.project_root = get_project_root(project_root)
         config_dir = self.project_root / "config" if not Path(config_path).is_absolute() else Path(config_path).parent
         self.config_loader = ConfigLoader.get_instance(str(config_dir))
+        cfg_file = Path(config_path)
+        if not cfg_file.is_absolute():
+            cfg_file = self.project_root / config_path
+        if cfg_file.exists():
+            with open(cfg_file, encoding="utf-8") as fh:
+                self.config_loader.config = json.load(fh)
         cfg = self.config_loader.config
 
         self.base_dir = resolve_memory_dir(self.project_root, base_dir)
@@ -63,6 +77,10 @@ class BrainMemoryRuntime:
             vector_dim=cfg.get("vector_dim", 768),
         )
         self.storage.set_embedder(self.embedder)
+        self._memory_mgmt = MemoryManagementConfig.from_dict(cfg)
+        self._lifecycle = MemoryLifecycleManager(self.storage, self._memory_mgmt)
+        self.storage.configure_lifecycle(self._lifecycle)
+        self.storage.set_recall_access_cap(self._memory_mgmt.recall_access_cap)
 
         # Layer 2 — Cognitive Runtime (G2)
         self.attention = DynamicAttentionField()
@@ -101,11 +119,23 @@ class BrainMemoryRuntime:
         )
         self.policy = GovernancePolicyEngine()
 
+        # L6 — CDG Hypervisor (sole governance control plane)
+        cdg_cfg = {**(cfg.get("governance") or {}), **(cfg.get("cdg") or {})}
+        if not cdg_cfg.get("audit_log_path"):
+            cdg_cfg["audit_log_path"] = str(Path(self.base_dir) / "governance_audit.jsonl")
+        self.cdg = CDGKernel(
+            cdg_cfg,
+            drift_detector=self.stability.detector,
+            mutation_guard=self.dna_engine.guard,
+        )
+
         # Validation
         self.validation = StabilityValidationOrchestrator(self)
 
         self.recall_top_k = cfg.get("recall_top_k", 12)
         self.runtime_mode = cfg.get("runtime_mode", "g2")
+        self._gtbs_observer = None
+        self._capture_boundary = None
         logger.info(
             "Brain-Memory G1 v%s initialized — %s Cognitive Runtime",
             "1.0.0-g1",
@@ -140,7 +170,8 @@ class BrainMemoryRuntime:
 
     @property
     def governance(self):
-        return self.stability
+        """CDG is the sole governance entry; stability coordinator is a subordinate probe."""
+        return self.cdg
 
     def _persist_reflection_memory(self, role: str, content: str, **kwargs) -> str:
         return self.storage.capture_memory(
@@ -163,6 +194,24 @@ class BrainMemoryRuntime:
         if rejected:
             return f"denied: {reason}"
 
+        if self._gtbs_capture_enabled():
+            return self._capture_via_gtbs(
+                role, content, layer, importance, emotional_weight, **meta
+            )
+
+        return self._capture_direct(
+            role, content, layer, importance, emotional_weight, **meta
+        )
+
+    def _capture_direct(
+        self,
+        role: str,
+        content: str,
+        layer: str,
+        importance: float,
+        emotional_weight: float,
+        **meta,
+    ) -> Union[str, Dict[str, Any]]:
         memory = Memory(
             memory_id=str(uuid.uuid4()),
             role=role,
@@ -180,13 +229,103 @@ class BrainMemoryRuntime:
         if not allowed:
             return f"denied: {gate_reason} (risk={risk:.2f})"
 
+        return self._commit_capture(
+            role,
+            content,
+            layer,
+            importance,
+            emotional_weight,
+            memory.embedding,
+            **meta,
+        )
+
+    def _capture_via_gtbs(
+        self,
+        role: str,
+        content: str,
+        layer: str,
+        importance: float,
+        emotional_weight: float,
+        **meta,
+    ) -> Union[str, Dict[str, Any]]:
+        from core.governance.gtbs.capture_boundary import infer_capture_target_stores
+
+        pre_snap = snapshot_cdg_state(self)
+        embedding = self.embedder.embed(content)
+        memory = Memory(
+            memory_id=str(uuid.uuid4()),
+            role=role,
+            content=content,
+            layer=layer,
+            importance=importance,
+            emotional_weight=emotional_weight,
+            timestamp=datetime.now(),
+            last_accessed_at=datetime.now(),
+            embedding=embedding,
+            metadata=meta,
+        )
+
+        boundary = self._get_capture_boundary()
+
+        def validate():
+            return self.policy.write_gate.validate(memory)
+
+        def commit():
+            return self._commit_capture(
+                role,
+                content,
+                layer,
+                importance,
+                emotional_weight,
+                embedding,
+                **meta,
+            )
+
+        result = boundary.propose_and_commit(
+            role=role,
+            content=content,
+            layer=layer,
+            importance=importance,
+            emotional_weight=emotional_weight,
+            meta=meta,
+            validate=validate,
+            commit=commit,
+        )
+
+        if isinstance(result, str) and not result.startswith("denied"):
+            post_snap = snapshot_cdg_state(self, capture_ids=[result])
+            self._gtbs_shadow_observe(
+                pre_snap,
+                post_snap,
+                context={"phase": "capture", "memory_id": result, "layer": layer},
+                proposal={
+                    "source": "capture",
+                    "operation_type": "INGEST",
+                    "target_stores": infer_capture_target_stores(
+                        role=role, layer=layer, importance=importance
+                    ),
+                    "proposed_keys": sorted(post_snap.keys()),
+                },
+            )
+        return result
+
+    def _commit_capture(
+        self,
+        role: str,
+        content: str,
+        layer: str,
+        importance: float,
+        emotional_weight: float,
+        embedding,
+        **meta,
+    ) -> str:
         mid = self.storage.capture_memory(
             role=role,
             content=content,
             layer=layer,
             importance=importance,
             emotional_weight=emotional_weight,
-            embedding=memory.embedding,
+            embedding=embedding,
             **meta,
         )
 
@@ -298,6 +437,71 @@ class BrainMemoryRuntime:
                 f"核心信念：{content}", confidence=confidence
             )
 
+    def _run_cdg_cycle(
+        self,
+        pre_state: Dict[str, Any],
+        proposed_state: Dict[str, Any],
+        *,
+        phase: str = "interaction",
+    ) -> Dict[str, Any]:
+        """CDG hypervisor — govern proposed cognition against pre-state + reality bus."""
+        decision = self.cdg.run(pre_state, proposed_state, phase=phase)
+        apply_cdg_state(self, decision.modified_state)
+        return decision.to_dict()
+
+    def _gtbs_shadow_enabled(self) -> bool:
+        cdg = self.config.get("cdg") or {}
+        return bool(cdg.get("enable_gtbs_shadow", False))
+
+    def _gtbs_shadow_persist_enabled(self) -> bool:
+        cdg = self.config.get("cdg") or {}
+        return bool(cdg.get("gtbs_shadow_persist", False))
+
+    def _gtbs_capture_enabled(self) -> bool:
+        cdg = self.config.get("cdg") or {}
+        return bool(cdg.get("enable_gtbs_capture", False))
+
+    def _get_capture_boundary(self):
+        if self._capture_boundary is None:
+            from core.governance.gtbs.capture_boundary import CaptureMutationBoundary
+            from core.governance.gtbs.transaction_log import GTBSTransactionLog
+
+            self._capture_boundary = CaptureMutationBoundary(
+                GTBSTransactionLog(self.base_dir)
+            )
+        return self._capture_boundary
+
+    def _gtbs_shadow_observe(
+        self,
+        pre_state: Dict[str, Any],
+        post_state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+        proposal: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        GTBS v1.1 P1.5 — opt-in divergence sensor (Axiom A5).
+
+        No audit write, no CDG feedback, no control. Returns snapshot dict only.
+        """
+        if not self._gtbs_shadow_enabled():
+            return None
+        if self._gtbs_observer is None:
+            from core.governance.gtbs import RuntimeGatekeeper
+
+            self._gtbs_observer = RuntimeGatekeeper()
+        observation = self._gtbs_observer.observe_runtime_event(
+            pre_state,
+            post_state,
+            context=context,
+            proposal=proposal,
+        )
+        if self._gtbs_shadow_persist_enabled():
+            from core.governance.gtbs.divergence_collector import get_shadow_collector
+
+            get_shadow_collector(self.base_dir).record(observation)
+        return observation
+
     def _generate_constrained_response(self, user_input: str, context: str) -> str:
         """Self-Model constrained draft (LLM layer injects self_model.to_prompt_block())."""
         return (
@@ -314,6 +518,9 @@ class BrainMemoryRuntime:
         """
         Subject Runtime Loop — experience → interpretation → self-update → prediction.
         """
+        grounding_event_id = self.cdg.ingest_user_action(user_input)
+        pre_state = snapshot_cdg_state(self, user_input=user_input, grounding_event_id=grounding_event_id)
+
         self.working_self.update_from_input(user_input, self.dna_engine.dna, importance=0.65)
 
         capture_id = self.capture("user", user_input, importance=0.65)
@@ -364,9 +571,52 @@ class BrainMemoryRuntime:
         self.deliberation.regulate_homeostasis(self.working_self)
         self.working_self.sync_to_legacy(self.state)
 
+        capture_ids = [capture_id] if isinstance(capture_id, str) and not capture_id.startswith("denied") else []
+        proposed_state = snapshot_cdg_state(
+            self,
+            user_input=user_input,
+            response=response,
+            capture_ids=capture_ids,
+            grounding_event_id=grounding_event_id,
+        )
+        cdg_result = self._run_cdg_cycle(pre_state, proposed_state, phase="interaction")
+        if not cdg_result.get("approved", True):
+            return {
+                "ok": False,
+                "reason": cdg_result.get("reason"),
+                "response": cdg_result.get("safe_response") or response,
+                "cdg": cdg_result,
+                "rcs": cdg_result.get("rcs"),
+                "working_self": self.working_self.to_dict(),
+                "self_model": self.self_model.to_dict(),
+            }
+
+        post_snap = snapshot_cdg_state(
+            self,
+            user_input=user_input,
+            response=response,
+            capture_ids=capture_ids,
+            grounding_event_id=grounding_event_id,
+        )
+        gtbs_shadow = self._gtbs_shadow_observe(
+            pre_state,
+            post_snap,
+            context={
+                "phase": "interaction",
+                "grounding_event_id": grounding_event_id,
+                "capture_id": capture_id,
+            },
+            proposal={
+                "source": "interaction",
+                "operation_type": "INTERACTION",
+                "target_stores": ["cognitive", "storage", "personality", "narrative"],
+                "proposed_keys": sorted(proposed_state.keys()),
+            },
+        )
+
         gov = self.run_governance_cycle()
 
-        return {
+        result = {
             "ok": True,
             "response": response,
             "capture_id": capture_id,
@@ -378,7 +628,16 @@ class BrainMemoryRuntime:
             "prediction_error": error,
             "reflection": reflection,
             "governance": gov.get("stability_metrics"),
+            "cdg": cdg_result,
+            "rcs": cdg_result.get("rcs"),
+            "potential_v": cdg_result.get("potential_v"),
+            "control_phase": cdg_result.get("control_phase"),
+            "d_v": cdg_result.get("d_v"),
+            "interventions": cdg_result.get("interventions", []),
         }
+        if gtbs_shadow is not None:
+            result["gtbs_shadow"] = gtbs_shadow
+        return result
 
     def process(self, user_input: str, *, assistant_output: Optional[str] = None) -> Dict[str, Any]:
         """G2 Cognitive Loop alias — delegates to process_interaction."""
@@ -410,7 +669,26 @@ class BrainMemoryRuntime:
 
     def run_governance_cycle(self) -> Dict[str, Any]:
         self.belief_engine.decay_confidence()
-        return self.stability.run_governance_cycle()
+        recent = self.cdg.reality_bus.window(1)
+        grounding_event_id = recent[-1].event_id if recent else None
+        pre_state = snapshot_cdg_state(self, grounding_event_id=grounding_event_id)
+        proposed_state = snapshot_cdg_state(self, grounding_event_id=grounding_event_id)
+        cdg_snapshot = self._run_cdg_cycle(pre_state, proposed_state, phase="background")
+        result = self.stability.run_governance_cycle()
+        result["cdg"] = cdg_snapshot
+        result["cdg_trajectory"] = self.cdg.trajectory_report()
+        if self.config.get("enable_metabolic", True):
+            result["memory_maintenance"] = self.run_memory_maintenance()
+        return result
+
+    def memory_stats(self) -> Dict[str, Any]:
+        return self._lifecycle.collect_stats().to_dict()
+
+    def run_memory_maintenance(self, *, force: bool = False) -> Dict[str, Any]:
+        """Metabolic cycle — decay, forget, capacity eviction."""
+        if not self.config.get("enable_metabolic", True) and not force:
+            return {"skipped": True, "reason": "enable_metabolic=false"}
+        return self._lifecycle.run_maintenance(force=force).to_dict()
 
     def run_validation_suite(self, days: int = 90) -> Dict[str, Any]:
         return self.validation.run_full_validation_suite(simulation_days=days)
@@ -471,6 +749,13 @@ class BrainMemoryRuntime:
                 ),
             },
             "working_memory_count": len(wm),
+            "cdg": {
+                "last_decision": (
+                    self.cdg.last_decision.to_dict() if self.cdg.last_decision else None
+                ),
+                "reality_frames": len(self.cdg.reality_bus.frames),
+                "trajectory": self.cdg.trajectory_report(last_n=10),
+            },
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -493,7 +778,9 @@ class BrainMemoryRuntime:
                 },
                 "governance": {
                     "overall_stability": state["stability_metrics"].get("overall_stability_score"),
+                    "cdg_phase": "advisory epistemic governance sidecar",
                 },
+                "cdg": state.get("cdg"),
             },
             "detail": state,
         }

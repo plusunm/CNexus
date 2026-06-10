@@ -158,6 +158,28 @@ Persistent Cognition • Identity Stability • Narrative Continuity • Belief 
 
 ---
 
+## GTBS Snapshot Principles (L2 / L2.5 Freeze)
+
+> **This repository snapshot represents a purely observational cognition system.**
+
+It does **not** execute governance, mutation, or control logic through the L2 / L2.5 semantic stack.
+
+All L2 / L2.5 modules are **interpretive layers** over immutable observability streams:
+
+- L2 v0.1 — snapshot semantics  
+- L2 v0.2 — temporal semantics  
+- L2 v0.3 — fusion semantics  
+- L2.5 — latent attractor inference  
+
+**Do NOT** modify runtime behavior, governance logic, or execution paths when working with this snapshot layer.  
+This is a **structural freeze**, not a refactor.
+
+Snapshot documentation: [docs/snapshots/GTBS_SYSTEM_SNAPSHOT_v0.3.md](docs/snapshots/GTBS_SYSTEM_SNAPSHOT_v0.3.md)  
+Mirror repository: [plusunm/CNexus](https://github.com/plusunm/CNexus)  
+Tag: `gtbs-snapshot-v0.3-l2.5`
+
+---
+
 ## License
 
 MIT License — see [LICENSE](LICENSE).

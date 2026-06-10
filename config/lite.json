@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0-g1-lite",
+  "embedding_model": "nomic-embed-text",
+  "embedding_fallback": "hash",
+  "runtime_mode": "g2",
+  "vector_dim": 768,
+  "recall_top_k": 6,
+  "governance_interval_seconds": 7200,
+  "importance_threshold": 0.48,
+  "write_gate_threshold": 0.45,
+  "enable_multi_hop": false,
+  "enable_metabolic": false,
+  "auto_capture": true,
+  "auto_recall": true
+}

@@ -94,6 +94,16 @@ class _KuzuCognitiveGraph:
             rows.append(result.get_next())
         return rows
 
+    def delete_memory_node(self, memory_id: str) -> bool:
+        try:
+            self.conn.execute(
+                "MATCH (m:MemoryNode {id: $id}) DETACH DELETE m",
+                {"id": memory_id},
+            )
+            return True
+        except Exception:
+            return False
+
     def belief_conflict_scan(self):
         pass
 

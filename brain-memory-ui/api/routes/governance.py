@@ -20,6 +20,11 @@ async def governance_cycle():
     return report
 
 
+@router.get("/trajectory")
+async def trajectory(last_n: int = Query(20, ge=1, le=256)):
+    return get_runtime().cdg.trajectory_report(last_n=last_n)
+
+
 @router.post("/validate")
 async def validate(days: int = Query(30, ge=1, le=365)):
     return get_runtime().run_validation_suite(days=days)

@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import uuid
 
@@ -8,6 +8,9 @@ from memory.schema import Memory
 from storage.graph import create_cognitive_graph
 from storage.provenance import ProvenanceTracker
 from storage.vector import LanceMemoryStore
+
+if TYPE_CHECKING:
+    from memory.lifecycle import MaintenanceReport, MemoryStats
 
 
 class UnifiedStorageManager:
@@ -18,9 +21,17 @@ class UnifiedStorageManager:
         self.graph = create_cognitive_graph(db_path=f"{base_dir}/kuzu_db")
         self.provenance = ProvenanceTracker()
         self._embedder = None
+        self._lifecycle = None
+        self._recall_access_cap = 50
 
     def set_embedder(self, embedder):
         self._embedder = embedder
+
+    def configure_lifecycle(self, lifecycle_manager) -> None:
+        self._lifecycle = lifecycle_manager
+
+    def set_recall_access_cap(self, cap: int) -> None:
+        self._recall_access_cap = max(1, int(cap))
 
     def _get_embedding(self, text: str) -> List[float]:
         if self._embedder:
@@ -39,6 +50,7 @@ class UnifiedStorageManager:
     ) -> str:
         memory_id = str(uuid.uuid4())
         now = datetime.now()
+        decay_factor = float(meta.pop("decay_factor", 1.0))
 
         memory = Memory(
             memory_id=memory_id,
@@ -50,6 +62,7 @@ class UnifiedStorageManager:
             timestamp=now,
             last_accessed_at=now,
             access_count=1,
+            decay_factor=decay_factor,
             embedding=embedding or self._get_embedding(content),
             metadata=meta,
         )
@@ -79,14 +92,18 @@ class UnifiedStorageManager:
         for r in results:
             mid = r.get("memory_id")
             if mid:
+                new_count = min(
+                    self._recall_access_cap,
+                    int(r.get("access_count", 0)) + 1,
+                )
                 self.vector.update_memory(
                     mid,
                     {
-                        "access_count": int(r.get("access_count", 0)) + 1,
+                        "access_count": new_count,
                         "last_accessed_at": now,
                     },
                 )
-                r["access_count"] = int(r.get("access_count", 0)) + 1
+                r["access_count"] = new_count
 
         return results
 
@@ -95,3 +112,19 @@ class UnifiedStorageManager:
 
     def forget_memory(self, memory_id: str):
         self.vector.delete_memory(memory_id)
+        if hasattr(self.graph, "delete_memory_node"):
+            self.graph.delete_memory_node(memory_id)
+
+    def memory_stats(self) -> "MemoryStats":
+        if self._lifecycle is None:
+            from memory.lifecycle import MemoryLifecycleManager, MemoryManagementConfig
+
+            self._lifecycle = MemoryLifecycleManager(self, MemoryManagementConfig())
+        return self._lifecycle.collect_stats()
+
+    def run_memory_maintenance(self, *, force: bool = False) -> "MaintenanceReport":
+        if self._lifecycle is None:
+            from memory.lifecycle import MemoryLifecycleManager, MemoryManagementConfig
+
+            self._lifecycle = MemoryLifecycleManager(self, MemoryManagementConfig())
+        return self._lifecycle.run_maintenance(force=force)

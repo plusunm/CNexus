@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import math
+import os
 from typing import List, Literal, Optional
 
 import httpx
@@ -8,6 +9,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 FallbackMode = Literal["hash", "zero"]
+EmbedMode = Literal["auto", "hash", "ollama"]
 
 
 class EmbeddingService:
@@ -25,6 +27,9 @@ class EmbeddingService:
         self.vector_dim = vector_dim
         self.fallback = fallback
         self._ollama_available: Optional[bool] = None
+        mode = os.environ.get("BM_EMBEDDING_MODE", "auto").lower()
+        self._force_hash = mode == "hash"
+        self._force_ollama = mode == "ollama"
 
     def _hash_embed(self, text: str) -> List[float]:
         """Deterministic pseudo-embedding — usable for recall without Ollama."""
@@ -46,6 +51,8 @@ class EmbeddingService:
         return self._hash_embed(text)
 
     def check_ollama(self) -> bool:
+        if self._force_hash:
+            return False
         try:
             with httpx.Client(timeout=3.0) as client:
                 resp = client.get(f"{self.host}/api/tags")
@@ -55,23 +62,40 @@ class EmbeddingService:
         return bool(self._ollama_available)
 
     def embed(self, text: str) -> List[float]:
-        try:
-            with httpx.Client(timeout=15.0) as client:
-                resp = client.post(
-                    f"{self.host}/api/embeddings",
-                    json={"model": self.model, "prompt": text},
-                )
-                resp.raise_for_status()
-                embedding = resp.json().get("embedding")
-                if embedding:
-                    self._ollama_available = True
-                    return embedding
-        except Exception as exc:
-            if self._ollama_available is not False:
-                logger.warning(
-                    "Ollama embedding unavailable, using %s fallback: %s",
-                    self.fallback,
-                    exc,
-                )
-            self._ollama_available = False
+        if self._force_hash:
+            return self._fallback_embed(text)
+
+        if self._ollama_available is False and not self._force_ollama:
+            return self._fallback_embed(text)
+
+        last_exc: Exception | None = None
+        payloads = [
+            (f"{self.host}/api/embed", {"model": self.model, "input": text}),
+            (f"{self.host}/api/embeddings", {"model": self.model, "prompt": text}),
+        ]
+        for url, body in payloads:
+            try:
+                with httpx.Client(timeout=8.0) as client:
+                    resp = client.post(url, json=body)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    embedding = data.get("embedding") or (
+                        data.get("embeddings", [None])[0] if data.get("embeddings") else None
+                    )
+                    if embedding:
+                        self._ollama_available = True
+                        return embedding
+            except Exception as exc:
+                last_exc = exc
+
+        if self._force_ollama:
+            raise RuntimeError(f"Ollama embedding required but failed: {last_exc}")
+
+        if self._ollama_available is not False:
+            logger.warning(
+                "Ollama embedding unavailable, using %s fallback: %s",
+                self.fallback,
+                last_exc,
+            )
+        self._ollama_available = False
         return self._fallback_embed(text)

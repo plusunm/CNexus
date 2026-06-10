@@ -52,5 +52,14 @@ class InMemoryCognitiveGraph:
         related.sort(key=lambda x: x["path_weight"], reverse=True)
         return related[:limit]
 
+    def delete_memory_node(self, memory_id: str) -> bool:
+        if memory_id not in self.nodes:
+            return False
+        del self.nodes[memory_id]
+        self.edges = [
+            e for e in self.edges if e["from"] != memory_id and e["to"] != memory_id
+        ]
+        return True
+
     def belief_conflict_scan(self):
         pass

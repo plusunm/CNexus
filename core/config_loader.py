@@ -26,9 +26,14 @@ class ConfigLoader:
         return _config_instance
 
     def load(self) -> Dict[str, Any]:
-        default_file = self.base_path / "default.json"
-        if default_file.exists():
-            with open(default_file, encoding="utf-8") as f:
+        config_name = os.environ.get("BM_CONFIG", "config/default.json")
+        config_file = Path(config_name)
+        if not config_file.is_absolute():
+            config_file = self.base_path.parent / config_name if config_name.startswith("config/") else self.base_path / config_name
+        if not config_file.exists():
+            config_file = self.base_path / "default.json"
+        if config_file.exists():
+            with open(config_file, encoding="utf-8") as f:
                 self.config = json.load(f)
 
         for key in list(self.config.keys()):
