@@ -51,10 +51,33 @@ export const brainApi = {
   recall: (query: string) =>
     request<{ context: string }>(`/memory/recall?query=${encodeURIComponent(query)}`),
 
-  chat: (message: string, modelId?: string, useMemory = true) =>
-    request<{ reply: string; model_name: string }>("/chat", {
+  chat: (
+    message: string,
+    modelId?: string,
+    useMemory = true,
+    fullCognitiveLoop = true,
+    allowProactive = true,
+  ) =>
+    request<{
+      reply: string;
+      model_name: string;
+      coherence_score?: number;
+      meta_reflection?: Record<string, unknown>;
+      emotion_state?: Record<string, unknown>;
+      active_intent?: string;
+      value_alignment?: Record<string, unknown>;
+      proactive?: Record<string, unknown>;
+      latency_ms?: number;
+      cognitive_loop?: boolean;
+    }>("/chat", {
       method: "POST",
-      body: JSON.stringify({ message, model_id: modelId, use_memory: useMemory }),
+      body: JSON.stringify({
+        message,
+        model_id: modelId,
+        use_memory: useMemory,
+        full_cognitive_loop: fullCognitiveLoop,
+        allow_proactive: allowProactive,
+      }),
     }),
 
   models: () => request<{ models: ModelProfile[] }>("/models"),

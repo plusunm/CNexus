@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from memory.block import MemoryBlock
     from storage.manager import UnifiedStorageManager
 
 
@@ -32,6 +33,11 @@ class MemoryManagementConfig:
     min_importance_retain: float = 0.22
     recall_access_cap: int = 50
     stale_days: int = 7
+    block_stale_days: int = 7
+    block_forget_decay_threshold: float = 0.15
+    block_min_effective_retain: float = 0.20
+    max_archival_blocks: int = 20
+    archival_compress_chars: int = 4000
 
     @classmethod
     def from_dict(cls, cfg: Dict[str, Any]) -> "MemoryManagementConfig":
@@ -49,6 +55,11 @@ class MemoryManagementConfig:
             min_importance_retain=float(mm.get("min_importance_retain", 0.22)),
             recall_access_cap=int(mm.get("recall_access_cap", 50)),
             stale_days=int(mm.get("stale_days", 7)),
+            block_stale_days=int(mm.get("block_stale_days", 7)),
+            block_forget_decay_threshold=float(mm.get("block_forget_decay_threshold", 0.15)),
+            block_min_effective_retain=float(mm.get("block_min_effective_retain", 0.20)),
+            max_archival_blocks=int(mm.get("max_archival_blocks", 20)),
+            archival_compress_chars=int(mm.get("archival_compress_chars", 4000)),
         )
 
 
@@ -255,3 +266,180 @@ class MemoryLifecycleManager:
             return datetime.fromisoformat(str(value).replace("Z", "+00:00").split("+")[0])
         except ValueError:
             return default
+
+
+@dataclass
+class BlockMaintenanceReport:
+    decayed: int = 0
+    forgotten: int = 0
+    compressed: int = 0
+    protected: int = 0
+    remaining: int = 0
+    details: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "decayed": self.decayed,
+            "forgotten": self.forgotten,
+            "compressed": self.compressed,
+            "protected": self.protected,
+            "remaining": self.remaining,
+            "details": self.details[:20],
+        }
+
+
+class BlockLifecycleManager:
+    """Lifecycle management for structured MemoryBlocks — decay, protect, compress."""
+
+    def __init__(self, config: Optional[MemoryManagementConfig] = None):
+        self.config = config or MemoryManagementConfig()
+
+    def is_protected(self, block: "MemoryBlock") -> bool:
+        from memory.block import AUTO_PROTECTED_LABELS, CORE_LABELS
+
+        if block.protected:
+            return True
+        if block.label in AUTO_PROTECTED_LABELS:
+            return True
+        if block.label in CORE_LABELS and block.importance >= 0.85:
+            return True
+        return block.importance >= 0.92
+
+    def apply_decay(self, block: "MemoryBlock", *, now: Optional[datetime] = None) -> "MemoryBlock":
+        if self.is_protected(block):
+            return block
+
+        now = now or datetime.now()
+        last_access = block.last_accessed_at or block.updated_at
+        idle_days = max(0.0, (now - last_access).total_seconds() / 86400.0)
+
+        if idle_days < 1.0 or block.decay_rate <= 0.0:
+            return block
+
+        new_decay = max(
+            self.config.block_forget_decay_threshold * 0.5,
+            block.decay_factor - block.decay_rate * idle_days,
+        )
+        if new_decay < block.decay_factor:
+            block.decay_factor = round(new_decay, 4)
+        return block
+
+    def should_forget(self, block: "MemoryBlock") -> bool:
+        from memory.block import CORE_LABELS
+
+        if self.is_protected(block):
+            return False
+        if block.label in CORE_LABELS:
+            return False
+
+        effective = block.importance * block.decay_factor
+        if block.decay_factor <= self.config.block_forget_decay_threshold:
+            return effective < self.config.block_min_effective_retain
+        return False
+
+    def compress_archival(self, blocks: List["MemoryBlock"]) -> tuple[List["MemoryBlock"], int]:
+        """Compress archival_facts blocks — merge excess or truncate long content."""
+        from memory.block import MemoryBlock
+
+        archival = [b for b in blocks if b.label == "archival_facts" and b.active]
+        if not archival:
+            return blocks, 0
+
+        compressed_count = 0
+        result = [b for b in blocks if b.label != "archival_facts" or not b.active]
+
+        archival.sort(key=lambda b: b.importance * b.decay_factor, reverse=True)
+        keep = archival[: self.config.max_archival_blocks]
+        merge_candidates = archival[self.config.max_archival_blocks :]
+
+        for block in keep:
+            if len(block.content) > self.config.archival_compress_chars:
+                block.content = self._summarize_content(
+                    block.content, self.config.archival_compress_chars
+                )
+                block.updated_at = datetime.now()
+                compressed_count += 1
+            result.append(block)
+
+        if merge_candidates:
+            merged_content = self._merge_archival_content(keep + merge_candidates)
+            if keep:
+                keep[0].content = merged_content[: keep[0].limit]
+                keep[0].updated_at = datetime.now()
+                result = [b for b in result if b.block_id != keep[0].block_id]
+                result.append(keep[0])
+            else:
+                merged = MemoryBlock.from_label(
+                    "archival_facts",
+                    merged_content,
+                    source="compression",
+                )
+                result.append(merged)
+            compressed_count += len(merge_candidates)
+
+        return result, compressed_count
+
+    def run_block_maintenance(self, blocks: List["MemoryBlock"]) -> tuple[List["MemoryBlock"], BlockMaintenanceReport]:
+        report = BlockMaintenanceReport(remaining=len(blocks))
+        now = datetime.now()
+        updated: List["MemoryBlock"] = []
+
+        for block in blocks:
+            if not block.active:
+                continue
+            if self.is_protected(block):
+                report.protected += 1
+                updated.append(block)
+                continue
+
+            before_decay = block.decay_factor
+            decayed = self.apply_decay(block, now=now)
+            if decayed.decay_factor < before_decay:
+                report.decayed += 1
+                report.details.append(
+                    f"decay:{block.label}:{block.block_id[:8]} factor={decayed.decay_factor:.3f}"
+                )
+
+            if self.should_forget(decayed):
+                report.forgotten += 1
+                report.details.append(f"forget:{block.label}:{block.block_id[:8]}")
+                continue
+
+            updated.append(decayed)
+
+        updated, compressed = self.compress_archival(updated)
+        report.compressed = compressed
+        if compressed:
+            report.details.append(f"archival_compressed:{compressed}")
+
+        report.remaining = len(updated)
+        return updated, report
+
+    @staticmethod
+    def _summarize_content(content: str, max_chars: int) -> str:
+        lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
+        if not lines:
+            return content[:max_chars]
+        summary_parts: List[str] = []
+        total = 0
+        for line in lines:
+            if total + len(line) > max_chars:
+                break
+            summary_parts.append(line)
+            total += len(line) + 1
+        summary = "\n".join(summary_parts)
+        if len(lines) > len(summary_parts):
+            summary += f"\n... [{len(lines) - len(summary_parts)} more facts compressed]"
+        return summary[:max_chars]
+
+    @staticmethod
+    def _merge_archival_content(blocks: List["MemoryBlock"]) -> str:
+        seen: set[str] = set()
+        parts: List[str] = []
+        for block in blocks:
+            for line in block.content.splitlines():
+                line = line.strip()
+                if line and line not in seen:
+                    seen.add(line)
+                    parts.append(line)
+        return "\n".join(parts)

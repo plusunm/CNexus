@@ -39,6 +39,7 @@ def iter_timed_rows(base_dir: str | Path) -> Iterator[tuple[datetime, str, dict[
         ("gtbs_shadow", obs / "gtbs_shadow.jsonl"),
         ("ecology_metrics", obs / "ecology_metrics.jsonl"),
         ("singularity_metrics", obs / "singularity_metrics.jsonl"),
+        ("cnexus_observation", obs / "cnexus_observation.jsonl"),
     )
     for name, path in streams:
         for row in read_jsonl(path):
@@ -54,6 +55,7 @@ def load_stream_rows(base_dir: str | Path) -> dict[str, list[dict[str, Any]]]:
         "gtbs_shadow": read_jsonl(obs / "gtbs_shadow.jsonl"),
         "ecology_metrics": read_jsonl(obs / "ecology_metrics.jsonl"),
         "singularity_metrics": read_jsonl(obs / "singularity_metrics.jsonl"),
+        "cnexus_observation": read_jsonl(obs / "cnexus_observation.jsonl"),
     }
 
 

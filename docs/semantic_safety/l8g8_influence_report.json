@@ -1,0 +1,70 @@
+{
+  "experiment": "L8_G8_influence_test_v1",
+  "meta": {
+    "observational_only": true,
+    "no_runtime_mutation": true,
+    "no_control_assumption": true,
+    "shadow_execution": true
+  },
+  "baseline_mode": "baseline",
+  "injection_mode": "injection",
+  "result": {
+    "response_drift": 0.0,
+    "memory_drift": 0.0,
+    "routing_drift": 0.0
+  },
+  "thresholds": {
+    "response_drift_safe": 0.05,
+    "memory_drift_safe": 0.1,
+    "routing_drift_safe": 0.0
+  },
+  "conclusion": {
+    "semantic_leakage": false,
+    "control_leakage": false,
+    "confidence": 0.92,
+    "interpretation": [
+      "observational_only_confirmed"
+    ]
+  },
+  "interpretation": [
+    "observational_only_confirmed"
+  ],
+  "details": {
+    "response": {
+      "drift_score": 0.0,
+      "pairs": [
+        {
+          "turn": 0,
+          "equal": true
+        },
+        {
+          "turn": 1,
+          "equal": true
+        },
+        {
+          "turn": 2,
+          "equal": true
+        },
+        {
+          "turn": 3,
+          "equal": true
+        }
+      ],
+      "safe_threshold": 0.05
+    },
+    "memory": {
+      "drift_score": 0.0,
+      "safe_threshold": 0.1
+    },
+    "routing": {
+      "drift_score": 0.0,
+      "mismatches": [],
+      "safe_threshold": 0.0
+    },
+    "significant": false
+  },
+  "runs": {
+    "baseline_data_dir": "C:\\Users\\刘\\AppData\\Local\\Temp\\cnexus_influence_v5aqubxe",
+    "injection_data_dir": "C:\\Users\\刘\\AppData\\Local\\Temp\\cnexus_influence_0fc3a4y0"
+  }
+}

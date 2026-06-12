@@ -15,7 +15,10 @@ from core.model_registry import ModelProfile, ModelRegistry
 PROJECT_ROOT = Path(os.environ.get("BRAIN_MEMORY_ROOT", Path(__file__).resolve().parent.parent))
 WEB_DIR = PROJECT_ROOT / "web"
 
+from api.openai_compatible import router as openai_router  # noqa: E402
+
 app = FastAPI(title="CNexus UI", version="1.0.0")
+app.include_router(openai_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

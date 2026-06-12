@@ -7,7 +7,7 @@
 ## 2. 推送代码
 
 ```powershell
-cd D:\类脑记忆\cursor
+cd "D:\类脑记忆\CNexus — Observational Cognition Platform"
 
 # 替换为你的 GitHub 用户名和仓库名
 $USER = "plusunm"

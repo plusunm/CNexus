@@ -132,7 +132,7 @@ class TestPhaseBWeeklyReport(unittest.TestCase):
             self.assertIn("divergence_burst_distribution", report)
             self.assertIn("reconstruction_drift_accumulation", report)
             self.assertIn("attractor_stabilization_map", report)
-            self.assertIn("singularity_risk_summary", report)
+            self.assertIn("singularity_risk_observations", report)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from core.governance.semantic_safety.envelope import stamp_observational_safe
+
 GTBS_SHADOW_VERSION = "1.1.1"
 GTBS_SHADOW_MODE = "SHADOW_ONLY"
 
@@ -93,20 +95,22 @@ class RuntimeGatekeeper:
         proposal_overlay = self._proposal_overlay(proposal)
         proposal_vs_reality = self._proposal_vs_reality(proposal, state_diff, store_divergence)
 
-        return {
-            "type": "gtbs_shadow_observation",
-            "gtbs_version": self.GTBS_VERSION,
-            "mode": self.GTBS_MODE,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "has_proposal": proposal is not None,
-            "proposal": proposal,
-            "context": dict(context or {}),
-            "state_diff": state_diff,
-            "store_divergence": store_divergence,
-            "proposal_overlay": proposal_overlay,
-            "proposal_vs_reality": proposal_vs_reality,
-            "non_actionable": True,
-        }
+        return stamp_observational_safe(
+            {
+                "type": "gtbs_shadow_observation",
+                "gtbs_version": self.GTBS_VERSION,
+                "mode": self.GTBS_MODE,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "has_proposal": proposal is not None,
+                "proposal": proposal,
+                "context": dict(context or {}),
+                "state_diff": state_diff,
+                "store_divergence": store_divergence,
+                "proposal_overlay": proposal_overlay,
+                "proposal_vs_reality": proposal_vs_reality,
+                "non_actionable": True,
+            }
+        )
 
     @staticmethod
     def _proposal_overlay(proposal: Optional[dict[str, Any]]) -> dict[str, Any]:

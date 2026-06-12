@@ -9,8 +9,8 @@ from core.personality.narrative.narrative_builder import NarrativeBuilder
 from core.personality.reflective.reflection_pipeline import ReflectionPipeline
 
 
-class DriftDetector:
-    """漂移检测引擎"""
+class DriftSignalExtractor:
+    """Extract drift signals from personality components."""
 
     def __init__(
         self,
@@ -34,7 +34,7 @@ class DriftDetector:
             "reflection_count": len(self.reflection.records) if self.reflection else 0,
         }
 
-    def detect(self) -> DriftReport:
+    def extract(self) -> DriftReport:
         if not self.baseline:
             self.set_baseline()
 
@@ -94,3 +94,10 @@ class DriftDetector:
 
         self.last_check = now
         return report
+
+    def detect(self) -> DriftReport:
+        """Deprecated v1 alias for extract()."""
+        return self.extract()
+
+
+DriftDetector = DriftSignalExtractor  # deprecated v1 alias

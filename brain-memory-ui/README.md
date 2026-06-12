@@ -38,7 +38,7 @@
 ### 1. 安装核心依赖（仓库根目录）
 
 ```bash
-cd D:\类脑记忆\cursor
+cd "D:\类脑记忆\CNexus — Observational Cognition Platform"
 pip install -r requirements.txt
 pip install -r brain-memory-ui/api/requirements.txt
 ```

@@ -9,7 +9,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT.parent))
 sys.path.insert(0, str(ROOT))
 
-from api.routes import chat, governance, logs, memory, models, reflective  # noqa: E402
+from api.routes import (  # noqa: E402
+    chat,
+    governance,
+    logs,
+    memory,
+    models,
+    openai_compatible,
+    reflective,
+)
 from api.runtime_log import runtime_log  # noqa: E402
 from api.websocket import router as ws_router  # noqa: E402
 
@@ -29,6 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(openai_compatible.router)
 app.include_router(reflective.router)
 app.include_router(memory.router)
 app.include_router(chat.router)

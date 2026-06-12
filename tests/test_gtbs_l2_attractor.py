@@ -92,6 +92,7 @@ class TestGTBSL2Attractor(unittest.TestCase):
             payload = report.to_dict()
             self.assertEqual(payload["narrative_version"], "L2_v0.5")
             self.assertIn("field_regime", payload)
+            self.assertIn("lock_in_signal", payload["risk_surface"])
             self.assertIn("lock_in_risk", payload["risk_surface"])
             self.assertIn("interpretation", payload)
             self.assertTrue(payload["metadata"]["no_control_leakage"])

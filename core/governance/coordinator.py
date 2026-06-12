@@ -1,7 +1,7 @@
 from typing import Optional
 
-from core.governance.drift_detector import DriftDetector
-from core.governance.identity_anchoring import IdentityAnchorManager
+from core.governance.drift_detector import DriftSignalExtractor
+from core.governance.identity_anchoring import IdentityAnchorRegistry
 from core.governance.stability_types import StabilityMetrics
 from core.personality.belief.belief_engine import BeliefEngine
 from core.personality.dna_engine import PersonalityDNAEngine
@@ -25,8 +25,8 @@ class StabilityCoordinator:
         self.belief = belief
         self.reflection = reflection
         self.state_manager = state_manager
-        self.detector = DriftDetector(dna, narrative, belief, reflection)
-        self.anchoring = IdentityAnchorManager(dna, narrative)
+        self.detector = DriftSignalExtractor(dna, narrative, belief, reflection)
+        self.anchoring = IdentityAnchorRegistry(dna, narrative)
         self.metrics = StabilityMetrics(
             identity_stability=0.92,
             narrative_coherence=0.88,

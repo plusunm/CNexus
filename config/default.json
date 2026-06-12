@@ -2,6 +2,14 @@
   "version": "1.0.0-g1",
   "embedding_model": "nomic-embed-text",
   "llm_model": "llama3.2",
+  "reflective_use_llm": true,
+  "reflective_llm_model": "llama3.2",
+  "reflective_llm_temperature": 0.3,
+  "proactive": {
+    "enabled": true,
+    "min_motivation_threshold": 0.72,
+    "inject_into_reply": true
+  },
   "ollama_host": "http://localhost:11434",
   "embedding_fallback": "hash",
   "runtime_mode": "g2",

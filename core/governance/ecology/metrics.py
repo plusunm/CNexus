@@ -49,20 +49,24 @@ class EcologyMetricsSnapshot:
     components: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "type": "ecology_metrics_snapshot",
-            "version": self.version,
-            "ts": self.ts,
-            "instrumentation_only": self.instrumentation_only,
-            "acd": round(self.acd, 4),
-            "odc": round(self.odc, 4),
-            "rre": round(self.rre, 4),
-            "cpi": round(self.cpi, 4),
-            "cpx": round(self.cpx, 4),
-            "observations": self.observations,
-            "components": {k: round(v, 4) for k, v in self.components.items()},
-            "non_actionable": True,
-        }
+        from core.governance.semantic_safety.envelope import stamp_observational_safe
+
+        return stamp_observational_safe(
+            {
+                "type": "ecology_metrics_snapshot",
+                "version": self.version,
+                "ts": self.ts,
+                "instrumentation_only": self.instrumentation_only,
+                "acd": round(self.acd, 4),
+                "odc": round(self.odc, 4),
+                "rre": round(self.rre, 4),
+                "cpi": round(self.cpi, 4),
+                "cpx": round(self.cpx, 4),
+                "observations": self.observations,
+                "components": {k: round(v, 4) for k, v in self.components.items()},
+                "non_actionable": True,
+            }
+        )
 
 
 class EcologyMetricsEngine:

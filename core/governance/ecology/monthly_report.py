@@ -14,6 +14,7 @@ from core.governance.ecology.collector import EcologyMetricsCollector
 from core.governance.ecology.metrics import ATTRACTOR_LABELS, EcologyMetricsEngine
 from core.governance.gtbs.divergence_analysis import DivergenceAnalyzer, _parse_ts
 from core.governance.shaping.attribution import ShapingAttributor
+from core.governance.semantic_safety.envelope import with_observational_safety
 
 
 def _iso_month(ts: datetime) -> str:
@@ -34,18 +35,21 @@ class MonthlyEcologyReport:
     north_star: str = "Reality-Governed Continuity Ecology"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "phase": "Phase C — Continuity Ecology Observatory",
-            "instrumentation_only": self.instrumentation_only,
-            "no_enforcement": True,
-            "north_star": self.north_star,
-            "attractor_competition_map": self.attractor_competition_map,
-            "openness_decay_trend": self.openness_decay_trend,
-            "reality_recovery_elasticity_trend": self.reality_recovery_elasticity_trend,
-            "contradiction_persistence_distribution": self.contradiction_persistence_distribution,
-            "continuity_pressure_evolution": self.continuity_pressure_evolution,
-            "ecosystem_stabilization_summary": self.ecosystem_stabilization_summary,
-        }
+        return with_observational_safety(
+            {
+                "phase": "Phase C — Continuity Ecology Observatory",
+                "instrumentation_only": self.instrumentation_only,
+                "no_enforcement": True,
+                "north_star": self.north_star,
+                "attractor_competition_map": self.attractor_competition_map,
+                "openness_decay_trend": self.openness_decay_trend,
+                "reality_recovery_elasticity_trend": self.reality_recovery_elasticity_trend,
+                "contradiction_persistence_distribution": self.contradiction_persistence_distribution,
+                "continuity_pressure_evolution": self.continuity_pressure_evolution,
+                "ecosystem_stabilization_summary": self.ecosystem_stabilization_summary,
+            },
+            simulation_only=False,
+        )
 
 
 class EcologyObservatoryEngine:
@@ -200,19 +204,26 @@ class EcologyObservatoryEngine:
             else False
         )
 
-        closure_risk = "elevated" if odc >= 0.45 or (odc_rising and odc >= 0.30) else "low"
-        decoupling_risk = "elevated" if rre < 0.35 or rre_falling else "low"
-        monopoly_risk = "elevated" if acd >= 0.50 else "moderate" if acd >= 0.35 else "low"
+        def _band(value: float, moderate: float, elevated: float) -> str:
+            if value >= elevated:
+                return "elevated_observation"
+            if value >= moderate:
+                return "moderate_observation"
+            return "low_observation"
+
+        closure_obs = "elevated_observation" if odc >= 0.45 or (odc_rising and odc >= 0.30) else "low_observation"
+        decoupling_obs = "elevated_observation" if rre < 0.35 or rre_falling else "low_observation"
+        monopoly_obs = _band(acd, 0.35, 0.50)
 
         return {
             "months_observed": len(months),
             "latest_metrics": {"acd": acd, "odc": odc, "rre": rre, "cpi": cpi, "cpx": cpx},
-            "ecological_health": {
-                "attractor_monopoly_risk": monopoly_risk,
-                "self_sealing_risk": closure_risk,
-                "reality_decoupling_risk": decoupling_risk,
-                "forced_coherence_pressure": "elevated" if cpi >= 0.45 else "low",
-                "continuity_distortion_pressure": "elevated" if cpx >= 0.45 else "low",
+            "ecological_observations": {
+                "attractor_monopoly_observation": monopoly_obs,
+                "self_sealing_observation": closure_obs,
+                "reality_decoupling_observation": decoupling_obs,
+                "forced_coherence_observation": "elevated_observation" if cpi >= 0.45 else "low_observation",
+                "continuity_distortion_observation": "elevated_observation" if cpx >= 0.45 else "low_observation",
             },
             "avoid": [
                 "continuity monopolistic attractors",

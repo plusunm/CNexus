@@ -18,6 +18,7 @@ from core.governance.shaping.attribution import ShapingAttributor
 from core.governance.reconstruction.drift_audit import ReconstructionDriftAuditor
 from core.governance.singularity.metrics import SingularityMetricsEngine
 from core.governance.singularity.collector import SingularityMetricsCollector
+from core.governance.semantic_safety.envelope import with_observational_safety
 
 
 def _iso_week(ts: datetime) -> str:
@@ -41,20 +42,23 @@ class WeeklyLongitudinalReport:
     north_star: str = "Reality-Governed Continuity"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "phase": "Phase B — Longitudinal Reality-Coupling Study",
-            "instrumentation_only": self.instrumentation_only,
-            "no_enforcement": True,
-            "north_star": self.north_star,
-            "prci_trend": self.prci_trend,
-            "ncr_trend": self.ncr_trend,
-            "cea_trend": self.cea_trend,
-            "rsci_trend": self.rsci_trend,
-            "divergence_burst_distribution": self.divergence_burst_distribution,
-            "reconstruction_drift_accumulation": self.reconstruction_drift_accumulation,
-            "attractor_stabilization_map": self.attractor_stabilization_map,
-            "singularity_risk_summary": self.singularity_risk_summary,
-        }
+        return with_observational_safety(
+            {
+                "phase": "Phase B — Longitudinal Reality-Coupling Study",
+                "instrumentation_only": self.instrumentation_only,
+                "no_enforcement": True,
+                "north_star": self.north_star,
+                "prci_trend": self.prci_trend,
+                "ncr_trend": self.ncr_trend,
+                "cea_trend": self.cea_trend,
+                "rsci_trend": self.rsci_trend,
+                "divergence_burst_distribution": self.divergence_burst_distribution,
+                "reconstruction_drift_accumulation": self.reconstruction_drift_accumulation,
+                "attractor_stabilization_map": self.attractor_stabilization_map,
+                "singularity_risk_observations": self.singularity_risk_summary,
+            },
+            simulation_only=False,
+        )
 
 
 class LongitudinalStudyEngine:
@@ -233,18 +237,18 @@ class LongitudinalStudyEngine:
         cea = float(latest.get("cea", 0.0))
         rsci = float(latest.get("rsci", 0.0))
 
-        narrative_sealing = "elevated" if ncr >= 0.45 else "moderate" if ncr >= 0.30 else "low"
-        reality_rejection = "elevated" if cea < 0.35 else "moderate" if cea < 0.50 else "low"
-        recursion_risk = "elevated" if rsci >= 0.40 else "moderate" if rsci >= 0.25 else "low"
+        narrative_sealing = "elevated_observation" if ncr >= 0.45 else "moderate_observation" if ncr >= 0.30 else "low_observation"
+        reality_rejection = "elevated_observation" if cea < 0.35 else "moderate_observation" if cea < 0.50 else "low_observation"
+        recursion_obs = "elevated_observation" if rsci >= 0.40 else "moderate_observation" if rsci >= 0.25 else "low_observation"
 
         rsci_rising = (
             report.rsci_trend[-1]["direction"] == "rising" if report.rsci_trend else False
         )
 
         return {
-            "narrative_closure_risk": narrative_sealing,
-            "reality_rejection_onset": reality_rejection,
-            "recursion_singularity_risk": recursion_risk,
+            "narrative_closure_observation": narrative_sealing,
+            "reality_rejection_observation": reality_rejection,
+            "recursion_singularity_observation": recursion_obs,
             "rsci_trend_rising": rsci_rising,
             "latest": {
                 "ncr": ncr,
@@ -252,5 +256,5 @@ class LongitudinalStudyEngine:
                 "rsci": rsci,
                 "prci": float(latest.get("prci", 0.0)),
             },
-            "interpretation": "epistemic signal only — not runtime fault",
+            "semantic_note": "observations are descriptive — not safety gates",
         }

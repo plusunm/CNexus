@@ -7,13 +7,24 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from core.config_loader import ConfigLoader
+from core.llm_client import LLMClient
+from core.model_registry import ModelProfile
 from core.embedding import EmbeddingService
 from core.paths import get_project_root, resolve_memory_dir
 from core.governance.cdg import CDGKernel, apply_cdg_state, snapshot_cdg_state
 from core.governance.coordinator import StabilityCoordinator
-from core.governance.safety.policy_engine import GovernancePolicyEngine
+from core.governance.values_governance import ValuesGovernance
+from core.memory.sleep_time_compute import SleepTimeCompute
+from core.governance.safety.policy_engine import GovernancePolicyDescriptor
 from core.personality.belief.belief_engine import BeliefEngine
 from core.personality.dna_engine import PersonalityDNAEngine
+from core.personality.emotion_engine import EmotionEngine
+from core.personality.intent_engine import (
+    PROACTIVE_MOTIVATION_THRESHOLD,
+    IntentEngine,
+    ProactiveTrigger,
+)
+from core.personality.reflective.reflective_engine import ReflectiveEngine
 from core.personality.narrative.narrative_builder import NarrativeBuilder
 from core.personality.reflective.reflection_pipeline import ReflectionPipeline
 from core.personality.reflective.reflective_memory import ReflectionRecord
@@ -22,6 +33,7 @@ from core.self_model import SelfModelStore
 from core.validation.validation_orchestrator import StabilityValidationOrchestrator
 from memory.filter import CaptureFilter
 from memory.lifecycle import MemoryLifecycleManager, MemoryManagementConfig
+from memory.manager import MemoryManager
 from memory.schema import Memory
 from runtime.attention import DynamicAttentionField
 from runtime.cognitive_apply import process_parsed_state
@@ -31,7 +43,7 @@ from runtime.cognitive_state import PersistentCognitiveState
 from runtime.context import ContextAssemblyEngine
 from runtime.predictive_loop import PredictiveSelf
 from core.governance.deliberation import DeliberativeGovernance
-from runtime.router import HierarchicalRecallRouter
+from runtime.router import HierarchicalRecallEngine
 from runtime.state import CognitiveStateManager
 from storage.manager import UnifiedStorageManager
 
@@ -90,7 +102,7 @@ class BrainMemoryRuntime:
         self.predictive = PredictiveSelf()
         self.cognitive_parser = CognitiveStateParser(llm_hook=None)
         self.identity_scheduler = IdentitySummaryScheduler(interval_turns=5, dissonance_threshold=0.65)
-        self.router = HierarchicalRecallRouter(self.storage)
+        self.router = HierarchicalRecallEngine(self.storage)
         self.recall_engine = CognitiveRecallEngine(self.storage, self.router)
         self.deliberation = DeliberativeGovernance()
         self.context_engine = ContextAssemblyEngine(self.attention)
@@ -117,7 +129,40 @@ class BrainMemoryRuntime:
             reflection=self.reflection_pipeline,
             state_manager=self.state,
         )
-        self.policy = GovernancePolicyEngine()
+        self.policy = GovernancePolicyDescriptor()
+
+        # Layer 1 — Memory Manager (structured blocks + episodic storage)
+        self.memory_manager = MemoryManager(
+            self.base_dir,
+            storage=self.storage,
+            write_gate=self.policy.write_gate,
+        )
+        self.memory_manager.set_embedder(self.embedder)
+        self.memory_manager.configure_lifecycle(self._lifecycle)
+        self.router.set_memory_manager(self.memory_manager)
+
+        # L3 — Emotion + Intent continuity (MemoryBlocks)
+        self.emotion_engine = EmotionEngine(self.memory_manager)
+        self.intent_engine = IntentEngine(self.memory_manager)
+        self._llm_client = LLMClient()
+        self.reflective_engine = ReflectiveEngine(
+            self.memory_manager,
+            self.emotion_engine,
+            self.intent_engine,
+            narrative=self.narrative,
+            llm_client=self._llm_client,
+            llm_profile_provider=self._get_reflective_llm_profile,
+            llm_temperature=float(cfg.get("reflective_llm_temperature", 0.3)),
+        )
+        self.values_governance = ValuesGovernance(
+            self.memory_manager,
+            persona_values_provider=self._get_persona_core_values,
+        )
+        self.sleep_time_compute = SleepTimeCompute(
+            self.memory_manager,
+            reflective_engine=self.reflective_engine,
+            compression_threshold_days=self._memory_mgmt.block_stale_days,
+        )
 
         # L6 — CDG Hypervisor (sole governance control plane)
         cdg_cfg = {**(cfg.get("governance") or {}), **(cfg.get("cdg") or {})}
@@ -154,6 +199,54 @@ class BrainMemoryRuntime:
     @property
     def write_gate(self):
         return self.policy.write_gate
+
+    @property
+    def memory(self):
+        """L1 MemoryManager — unified memory entry."""
+        return self.memory_manager
+
+    @property
+    def emotion(self):
+        return self.emotion_engine
+
+    @property
+    def intent(self):
+        return self.intent_engine
+
+    @property
+    def reflective(self):
+        return self.reflective_engine
+
+    @property
+    def values(self):
+        return self.values_governance
+
+    @property
+    def sleep(self):
+        return self.sleep_time_compute
+
+    def _get_persona_core_values(self) -> List[str]:
+        """Core values for ValuesGovernance — narrative first, then defaults."""
+        narrative_values = list(self.narrative.narrative.core_values or [])
+        if narrative_values:
+            return narrative_values[:8]
+        return list(self.values_governance.core_values)
+
+    def _get_reflective_llm_profile(self) -> Optional[ModelProfile]:
+        """Model profile for ReflectiveEngine LLM critic (config-driven)."""
+        if not self.config.get("reflective_use_llm", True):
+            return None
+        cfg = self.config
+        return ModelProfile(
+            id="reflective-critic",
+            name="Reflective Critic",
+            provider="ollama",
+            base_url=cfg.get("ollama_host", "http://localhost:11434"),
+            api_key="",
+            model=cfg.get("reflective_llm_model") or cfg.get("llm_model", "llama3.2"),
+            is_default=True,
+            enabled=True,
+        )
 
     # Facade aliases
     @property
@@ -318,25 +411,51 @@ class BrainMemoryRuntime:
         emotional_weight: float,
         embedding,
         **meta,
-    ) -> str:
-        mid = self.storage.capture_memory(
-            role=role,
-            content=content,
+    ) -> Union[str, Dict[str, Any]]:
+        capture_result = self.memory_manager.capture_interaction(
+            role,
+            content,
             layer=layer,
             importance=importance,
             emotional_weight=emotional_weight,
             embedding=embedding,
             **meta,
         )
+        mid = capture_result["episodic_id"]
 
         if layer in ("goal", "identity", "belief"):
             self.narrative.update_from_memory(content, importance=importance)
         if importance > 0.75:
-            self.belief_engine.add_or_update_belief(content, confidence=importance, source_memory_id=mid)
+            self.belief_engine.add_or_update_belief(
+                content, confidence=importance, source_memory_id=mid
+            )
 
         if role == "user":
             self._apply_cognitive_state(content, layer=layer, importance=importance)
 
+        if meta.get("update_emotion", True):
+            emotion_state = self.emotion_engine.update_from_interaction(
+                role,
+                content,
+                context=meta.get("context"),
+                importance=importance,
+            )
+            if meta.get("return_detail"):
+                capture_result["emotion"] = emotion_state.model_dump(mode="json")
+
+        intent_layers = {"goal", "identity", "episodic", "working"}
+        if meta.get("update_intent", True) and layer in intent_layers:
+            intent_state = self.intent_engine.update_from_interaction(
+                role,
+                content,
+                context=meta.get("context"),
+                importance=importance,
+            )
+            if meta.get("return_detail"):
+                capture_result["intent"] = intent_state.model_dump(mode="json")
+
+        if meta.get("return_detail"):
+            return capture_result
         return mid
 
     def _apply_cognitive_state(self, user_input: str, *, layer: str, importance: float) -> Dict[str, Any]:
@@ -402,6 +521,10 @@ class BrainMemoryRuntime:
         self.working_self.sync_to_legacy(self.state)
 
         context = self.context_engine.assemble(query, recall_results)
+        emotion_context = self.emotion_engine.format_context_block()
+        intent_context = self.intent_engine.format_context_block()
+        reflective_context = self.reflective_engine.format_context_block(limit=2)
+        values_context = self.values_governance.format_context_block(limit=2)
         identity_anchor = self.narrative.generate_identity_anchor()
         self_block = self.self_model.to_prompt_block()
         state_block = (
@@ -414,7 +537,12 @@ class BrainMemoryRuntime:
             f"【Identity Context】\n"
             f"• {self.narrative.get_current_narrative_summary()}"
         )
-        return f"{identity_anchor}\n\n{self_block}\n\n{state_block}\n\n{identity_block}\n\n{context}"
+        return (
+            f"{identity_anchor}\n\n{self_block}\n\n{state_block}\n\n"
+            f"{emotion_context}\n\n{intent_context}\n\n{reflective_context}\n\n"
+            f"{values_context}\n\n"
+            f"{identity_block}\n\n{context}"
+        )
 
     @property
     def self_model(self):
@@ -509,14 +637,99 @@ class BrainMemoryRuntime:
             f"结合当前认知上下文，回应：{user_input[:120]}"
         )
 
+    def _generate_llm_response(
+        self,
+        user_input: str,
+        context: str,
+        *,
+        temperature: float = 0.7,
+        llm_client: Any = None,
+        llm_profile: Any = None,
+    ) -> str:
+        """LLM reply for HTTP /chat full loop; falls back to constrained draft."""
+        if llm_client is None or llm_profile is None:
+            return self._generate_constrained_response(user_input, context)
+        system = "You are a long-lived AI powered by CNexus.\n"
+        if context:
+            system += f"\n--- Persistent Memory ---\n{context}"
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_input},
+        ]
+        return llm_client.chat(llm_profile, messages, temperature=temperature)
+
+    def _get_proactive_config(self) -> Dict[str, Any]:
+        return dict(self.config.get("proactive") or {})
+
+    def _apply_proactive_loop(
+        self,
+        reply: str,
+        *,
+        allow_proactive: bool = True,
+    ) -> tuple[str, Optional[Dict[str, Any]]]:
+        """Evaluate proactive intent trigger and optionally append suggestion to reply."""
+        cfg = self._get_proactive_config()
+        if not allow_proactive or not cfg.get("enabled", True):
+            return reply, None
+
+        threshold = float(
+            cfg.get("min_motivation_threshold", PROACTIVE_MOTIVATION_THRESHOLD)
+        )
+        trigger: ProactiveTrigger = self.intent_engine.trigger_proactive(
+            min_motivation=threshold
+        )
+        if not trigger.should_trigger:
+            return reply, None
+
+        proactive_info = {
+            "triggered": True,
+            "reason": trigger.reason,
+            "suggested_action": trigger.suggested_action,
+            "priority": trigger.priority,
+            "goal_id": trigger.goal_id,
+        }
+
+        final_reply = reply
+        if cfg.get("inject_into_reply", True):
+            if "主动" not in reply and len(reply) < 800 and trigger.suggested_action:
+                final_reply = f"{reply}\n\n{trigger.suggested_action}"
+        return final_reply, proactive_info
+
+    def _interaction_api_fields(
+        self,
+        cdg_result: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Unified fields exposed to /chat and external integrators."""
+        goals = self.intent_engine.get_active_goals(1)
+        if cdg_result and cdg_result.get("rcs") is not None:
+            coherence_score = float(cdg_result["rcs"])
+        else:
+            coherence_score = float(
+                self.self_model.coherence_score
+                or self.narrative.narrative.narrative_coherence_score
+                or 0.0
+            )
+        return {
+            "coherence_score": coherence_score,
+            "emotion_state": self.emotion_engine.get_state_summary(),
+            "active_intent": goals[0].description if goals else None,
+        }
+
     def process_interaction(
         self,
         user_input: str,
         *,
         assistant_output: Optional[str] = None,
+        use_memory: bool = True,
+        temperature: float = 0.7,
+        llm_client: Any = None,
+        llm_profile: Any = None,
+        allow_proactive: bool = True,
     ) -> Dict[str, Any]:
         """
         Subject Runtime Loop — experience → interpretation → self-update → prediction.
+        When llm_client + llm_profile are provided and assistant_output is omitted,
+        generates the reply via LLM before governance (HTTP /chat full loop).
         """
         grounding_event_id = self.cdg.ingest_user_action(user_input)
         pre_state = snapshot_cdg_state(self, user_input=user_input, grounding_event_id=grounding_event_id)
@@ -525,10 +738,19 @@ class BrainMemoryRuntime:
 
         capture_id = self.capture("user", user_input, importance=0.65)
         if isinstance(capture_id, str) and capture_id.startswith("denied"):
-            return {"ok": False, "reason": capture_id}
+            return {"ok": False, "reason": capture_id, **self._interaction_api_fields()}
 
-        context = self.recall(user_input)
-        response = assistant_output or self._generate_constrained_response(user_input, context)
+        context = self.recall(user_input) if use_memory else ""
+        if assistant_output is not None:
+            response = assistant_output
+        else:
+            response = self._generate_llm_response(
+                user_input,
+                context,
+                temperature=temperature,
+                llm_client=llm_client,
+                llm_profile=llm_profile,
+            )
 
         allowed, gate_reason = self.deliberation.deliberate(
             response, self.working_self, self.dna_engine.dna
@@ -539,8 +761,10 @@ class BrainMemoryRuntime:
                 "reason": gate_reason,
                 "context": context,
                 "response": response,
+                "reply": response,
                 "working_self": self.working_self.to_dict(),
                 "self_model": self.self_model.to_dict(),
+                **self._interaction_api_fields(),
             }
 
         error = self.predictive.predict_and_update(
@@ -564,7 +788,22 @@ class BrainMemoryRuntime:
         self._sync_narrative_from_self_model()
         self._sync_beliefs_from_self_model()
 
-        self.capture("assistant", response, importance=0.55)
+        meta_reflection = self.reflective_engine.reflect_on_interaction(
+            response,
+            {
+                "query": user_input,
+                "user_input": user_input,
+                "prediction_error": error,
+                "context_preview": context[:200] if context else "",
+            },
+            feedback=None,
+            use_llm=self.config.get("reflective_use_llm", True),
+        )
+
+        value_alignment = self.intent_engine.check_value_alignment(self.values_governance)
+        value_alignment_payload = (
+            value_alignment.model_dump(mode="json") if value_alignment else None
+        )
 
         self.working_self.update_prediction_error()
         self.working_self.add_reflection(reflection)
@@ -581,14 +820,17 @@ class BrainMemoryRuntime:
         )
         cdg_result = self._run_cdg_cycle(pre_state, proposed_state, phase="interaction")
         if not cdg_result.get("approved", True):
+            safe_response = cdg_result.get("safe_response") or response
             return {
                 "ok": False,
                 "reason": cdg_result.get("reason"),
-                "response": cdg_result.get("safe_response") or response,
+                "response": safe_response,
+                "reply": safe_response,
                 "cdg": cdg_result,
                 "rcs": cdg_result.get("rcs"),
                 "working_self": self.working_self.to_dict(),
                 "self_model": self.self_model.to_dict(),
+                **self._interaction_api_fields(cdg_result),
             }
 
         post_snap = snapshot_cdg_state(
@@ -616,10 +858,18 @@ class BrainMemoryRuntime:
 
         gov = self.run_governance_cycle()
 
+        final_reply, proactive_info = self._apply_proactive_loop(
+            response,
+            allow_proactive=allow_proactive,
+        )
+        assistant_capture_id = self.capture("assistant", final_reply, importance=0.55)
+
         result = {
             "ok": True,
-            "response": response,
+            "response": final_reply,
+            "reply": final_reply,
             "capture_id": capture_id,
+            "assistant_capture_id": assistant_capture_id,
             "context": context,
             "working_self": self.working_self.to_dict(),
             "self_model": self.self_model.to_dict(),
@@ -627,6 +877,9 @@ class BrainMemoryRuntime:
             "predictive": self.predictive.to_dict(),
             "prediction_error": error,
             "reflection": reflection,
+            "meta_reflection": meta_reflection.model_dump(mode="json"),
+            "value_alignment": value_alignment_payload,
+            "proactive": proactive_info,
             "governance": gov.get("stability_metrics"),
             "cdg": cdg_result,
             "rcs": cdg_result.get("rcs"),
@@ -634,6 +887,7 @@ class BrainMemoryRuntime:
             "control_phase": cdg_result.get("control_phase"),
             "d_v": cdg_result.get("d_v"),
             "interventions": cdg_result.get("interventions", []),
+            **self._interaction_api_fields(cdg_result),
         }
         if gtbs_shadow is not None:
             result["gtbs_shadow"] = gtbs_shadow
@@ -678,17 +932,41 @@ class BrainMemoryRuntime:
         result["cdg"] = cdg_snapshot
         result["cdg_trajectory"] = self.cdg.trajectory_report()
         if self.config.get("enable_metabolic", True):
-            result["memory_maintenance"] = self.run_memory_maintenance()
+            result["memory_maintenance"] = self.maintain_memory()
         return result
 
     def memory_stats(self) -> Dict[str, Any]:
         return self._lifecycle.collect_stats().to_dict()
 
     def run_memory_maintenance(self, *, force: bool = False) -> Dict[str, Any]:
-        """Metabolic cycle — decay, forget, capacity eviction."""
+        """Metabolic cycle — block + episodic decay, forget, compression."""
         if not self.config.get("enable_metabolic", True) and not force:
             return {"skipped": True, "reason": "enable_metabolic=false"}
-        return self._lifecycle.run_maintenance(force=force).to_dict()
+        return self.memory_manager.run_maintenance(force=force)
+
+    def maintain_memory(self, *, force: bool = False) -> Dict[str, Any]:
+        """Block lifecycle + episodic maintenance + sleep-time consolidation."""
+        if not self.config.get("enable_metabolic", True) and not force:
+            return {"skipped": True, "reason": "enable_metabolic=false"}
+
+        block_report = self.memory_manager.run_maintenance(force=force)
+        sleep_report = self.sleep_time_compute.run_sleep_cycle(force=force)
+        return {
+            **block_report,
+            "sleep_time": sleep_report.to_dict(),
+        }
+
+    async def maintain_memory_async(self, *, force: bool = False) -> Dict[str, Any]:
+        """Async maintenance entry for background schedulers."""
+        if not self.config.get("enable_metabolic", True) and not force:
+            return {"skipped": True, "reason": "enable_metabolic=false"}
+
+        block_report = self.memory_manager.run_maintenance(force=force)
+        sleep_report = await self.sleep_time_compute.run_sleep_cycle_async(force=force)
+        return {
+            **block_report,
+            "sleep_time": sleep_report.to_dict(),
+        }
 
     def run_validation_suite(self, days: int = 90) -> Dict[str, Any]:
         return self.validation.run_full_validation_suite(simulation_days=days)

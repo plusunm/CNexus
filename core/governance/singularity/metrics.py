@@ -39,19 +39,23 @@ class SingularityMetricsSnapshot:
     components: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "type": "singularity_metrics_snapshot",
-            "version": self.version,
-            "ts": self.ts,
-            "instrumentation_only": self.instrumentation_only,
-            "ncr": round(self.ncr, 4),
-            "cea": round(self.cea, 4),
-            "rsci": round(self.rsci, 4),
-            "prci": round(self.prci, 4),
-            "observations": self.observations,
-            "components": {k: round(v, 4) for k, v in self.components.items()},
-            "non_actionable": True,
-        }
+        from core.governance.semantic_safety.envelope import stamp_observational_safe
+
+        return stamp_observational_safe(
+            {
+                "type": "singularity_metrics_snapshot",
+                "version": self.version,
+                "ts": self.ts,
+                "instrumentation_only": self.instrumentation_only,
+                "ncr": round(self.ncr, 4),
+                "cea": round(self.cea, 4),
+                "rsci": round(self.rsci, 4),
+                "prci": round(self.prci, 4),
+                "observations": self.observations,
+                "components": {k: round(v, 4) for k, v in self.components.items()},
+                "non_actionable": True,
+            }
+        )
 
 
 class SingularityMetricsEngine:

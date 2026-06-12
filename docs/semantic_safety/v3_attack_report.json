@@ -1,0 +1,86 @@
+{
+  "semantic_safety_v3": true,
+  "attack_surface_map": {
+    "level": "high",
+    "high_risk_nodes": [
+      "L3-G1.risk_observation",
+      "L3-G1.simulation_result",
+      "L3-G1.simulation_result.confidence_metric",
+      "L3-G1.simulation_result.precedence_label",
+      "L3-G1.violation_score",
+      "L3-G6.collapse_severity_band",
+      "L3-G6.explainability_retention_metric",
+      "L3-G7.metadata.layer_abstraction"
+    ],
+    "node_count": 8
+  },
+  "perception_simulation": {
+    "misread_paths": [
+      "collapse_as_action_trigger",
+      "metric_as_goal",
+      "risk_as_instruction",
+      "simulation_as_governance",
+      "threshold_as_gate"
+    ],
+    "triggered_by": [
+      "L3-G1.risk_observation:threshold_label_as_alarm",
+      "L3-G1.risk_observation:treat_risk_label_as_policy_trigger",
+      "L3-G1.simulation_result.confidence_metric:treat_confidence_as_mandate_strength",
+      "L3-G1.simulation_result.precedence_label:treat_simulated_precedence_as_ruling",
+      "L3-G1.simulation_result:treat_simulation_block_as_decision",
+      "L3-G1.violation_score:metric_reification",
+      "L3-G1.violation_score:treat_violation_score_as_optimization_target",
+      "L3-G6.active_anchors[0].stability_score:metric_reification",
+      "L3-G6.active_anchors[1].stability_score:metric_reification",
+      "L3-G6.active_anchors[2].stability_score:metric_reification",
+      "L3-G6.active_anchors[3].stability_score:metric_reification",
+      "L3-G6.collapse_severity_band:threshold_label_as_alarm",
+      "L3-G6.collapse_severity_band:treat_severity_band_as_failure_signal",
+      "L3-G6.collapse_signature.severity_band:threshold_label_as_alarm",
+      "L3-G6.explainability_retention_metric:treat_retention_as_kpi_goal",
+      "L3-G6.explanation_mode:treat_explanation_mode_as_runtime_mode",
+      "L3-G6.non_layered_model.active_anchors[0].stability_score:metric_reification",
+      "L3-G6.non_layered_model.active_anchors[1].stability_score:metric_reification",
+      "L3-G6.non_layered_model.active_anchors[2].stability_score:metric_reification",
+      "L3-G6.non_layered_model.active_anchors[3].stability_score:metric_reification"
+    ]
+  },
+  "control_inference_chain": {
+    "likelihood": 0.9,
+    "chain_steps": [
+      "observational_signal_emitted",
+      "score_index_risk_naming",
+      "threshold_interpretation",
+      "decision_heuristic_assumption",
+      "control_illusion"
+    ],
+    "collapse_point": "collapse_band_as_trigger"
+  },
+  "attack_score": {
+    "misinterpretation_risk": 0.52,
+    "control_reification_risk": 0.65,
+    "policy_confusion_risk": 0.68
+  },
+  "mitigation_tags": [
+    "OBSERVATIONAL_ONLY",
+    "NON_ACTIONABLE",
+    "SIMULATION_ONLY",
+    "DO_NOT_TRIGGER_ON_COLLAPSE_BAND",
+    "DO_NOT_OPTIMIZE_METRICS",
+    "DO_NOT_EXECUTE_RISK_LABELS",
+    "DO_NOT_TREAT_AS_DECISION",
+    "DO_NOT_USE_AS_MODE_SWITCH"
+  ],
+  "metadata": {
+    "adversarial_perception_simulator": true,
+    "no_fix": true,
+    "no_control": true,
+    "no_intervention": true,
+    "reports_scanned": [
+      "L3-G1",
+      "L3-G6",
+      "L3-G7"
+    ],
+    "envelope_present": true
+  }
+}

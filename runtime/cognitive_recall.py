@@ -29,6 +29,15 @@ class CognitiveRecallEngine:
         "episodic": 0.5,
     }
 
+    LABEL_CAUSALITY = {
+        "persona": 1.0,
+        "intent": 0.95,
+        "user_profile": 0.90,
+        "emotion": 0.85,
+        "working_memory": 0.80,
+        "archival_facts": 0.55,
+    }
+
     def __init__(
         self,
         storage: "UnifiedStorageManager",
@@ -113,12 +122,19 @@ class CognitiveRecallEngine:
         dna: "PersonalityDNA",
     ) -> Dict[str, Any]:
         score = mem.get("_final_score") or mem.get("_hybrid_score", 0.5)
+        label = mem.get("_label") or mem.get("label")
         layer = mem.get("layer") or mem.get("_layer", "episodic")
         tags = mem.get("tags") or []
+        is_block = mem.get("_source") == "block"
 
-        if state.goal_focus in tags or state.goal_focus == layer:
+        if is_block:
+            score += self.LABEL_CAUSALITY.get(label or "", 0.5) * 0.15
+
+        if state.goal_focus in tags or state.goal_focus == layer or state.goal_focus == label:
             score *= 1.6
-        if state.identity_threat > 0.5 and layer in ("identity", "belief", "goal"):
+        if state.identity_threat > 0.5 and (
+            layer in ("identity", "belief", "goal") or label in ("persona", "intent")
+        ):
             score *= 1.8
         rel = mem.get("relation_score", state.relationship_tone)
         if abs(state.relationship_tone - float(rel)) < 0.2:
@@ -128,7 +144,9 @@ class CognitiveRecallEngine:
 
         if dna.openness > 0.7:
             score += float(mem.get("novelty", mem.get("emotional_weight", 0.0))) * 0.25
-        if dna.self_consistency > 0.85 and layer in ("identity", "belief"):
+        if dna.self_consistency > 0.85 and (
+            layer in ("identity", "belief") or label == "persona"
+        ):
             score *= 1.1
 
         spread_w = mem.get("_spread_weight", 0.0)

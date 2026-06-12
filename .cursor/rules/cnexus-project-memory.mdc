@@ -1,0 +1,74 @@
+---
+description: CNexus project vision, architecture reconciliation, and L1 memory layer status
+alwaysApply: true
+---
+
+# CNexus Project Memory
+
+**Path:** `D:\类脑记忆\CNexus — Observational Cognition Platform`  
+**Product:** CNexus — Observational Cognition Platform  
+**Updated:** 2026-06-12
+
+## Vision
+
+Persistent Cognitive Runtime **below LLM, above user**. Goal: same being over time, not smarter AI.
+
+**Principles:** Engineering First · Observation ≠ Control · Stability-First · Memory independent of LLM (L1 owns store/recall/lifecycle; LLM only reasons).
+
+**Dimensions (confirmed):** cognitive · personality · memory · emotion · intentionality.
+
+Full doc: `docs/CNEXUS_PERSISTENT_MEMORY.md`
+
+## Architecture Reconciliation (summary)
+
+| Layer | Maturity | Gap |
+|-------|----------|-----|
+| L1 Memory | ★★★★☆ | MemoryBlock layer **done** (2026-06-12) |
+| L2 Cognitive | ★★★★☆ | LLM Adapter not in main loop |
+| L3 Personality | ★★★★★ | EmotionEngine + IntentEngine done |
+| L5 Governance | ★★★★★ | GTBS / Semantic Safety / L8 complete |
+| External | ★★★☆☆ | No inbound OpenAI API / SKILL / Desktop |
+
+**3 systemic gaps:**
+1. 🟢 `/chat` → `process_interaction()` **wired** (`full_cognitive_loop=true` default; `false` = legacy path)
+2. 🟢 MemoryBlock abstraction — **implemented** (Manager + Store + recall + lifecycle)
+3. 🟢 EmotionEngine + IntentEngine + ReflectiveEngine **done**
+
+**Aliases:** `process_message` → `process_interaction()` · `HierarchicalRecallRouter` → `HierarchicalRecallEngine`
+
+## L1 Memory (implemented 2026-06-12)
+
+```
+MemoryManager (memory/manager.py) — single L1 entry
+├── MemoryBlockStore (memory/blocks/)
+├── BlockGovernanceHook (approved/flagged/rejected)
+├── BlockLifecycleManager (decay/protect/compress)
+├── capture_interaction() — episodic + block dual-write
+└── HierarchicalRecallEngine — label priority recall + episodic fallback
+```
+
+**Blocks:** persona · intent · emotion · working_memory · user_profile · archival_facts · reflective_trace · value_alignment_history  
+**Capture routing:** identity→persona, goal→intent, working→working_memory, relationship→user_profile
+
+**Key APIs:**
+- `runtime.memory` / `runtime.memory_manager`
+- `runtime.maintain_memory()` / `runtime.run_memory_maintenance()`
+- `runtime.capture(..., return_detail=True)` for block + governance info
+
+## Next Priority
+
+P6: Native Anthropic / streaming / tool-call loop  
+P7: ReflectiveEngine → ModelRegistry profile selection (UI)
+
+## Inbound OpenAI API
+
+- `POST /v1/chat/completions` — full `process_interaction` loop (default)
+- `GET /v1/models` — cnexus + registry models
+- `GET /v1/skills` — OpenAI tools schema for CNexus SKILLs
+- Extension field: response `cnexus` metadata (coherence, proactive, etc.)
+
+## Do Not
+
+- Mutate Runtime Kernel WAL/fold (external sidecar at `D:\plusunm\g1-pioneer`)
+- Break episodic `Memory` backward compat — blocks coexist with flat episodic trace
+- Skip WriteGate / BlockGovernanceHook on block writes

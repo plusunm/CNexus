@@ -8,7 +8,7 @@
 
 ## 2. 安装步骤
 ```bash
-cd D:\类脑记忆\cursor
+cd "D:\类脑记忆\CNexus — Observational Cognition Platform"
 pip install -r requirements.txt
 
 # 配置 Ollama

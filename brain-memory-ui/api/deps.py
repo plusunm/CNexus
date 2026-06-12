@@ -16,9 +16,11 @@ os.environ.setdefault(
 from brain_memory import BrainMemoryRuntime
 from core.llm_client import LLMClient
 from core.model_registry import ModelRegistry
+from core.skill.skill_registry import SkillRegistry, build_default_skill_registry
 
 _runtime: Optional[BrainMemoryRuntime] = None
 _registry: Optional[ModelRegistry] = None
+_skills: Optional[SkillRegistry] = None
 _llm = LLMClient()
 _runtime_lock = threading.Lock()
 
@@ -43,3 +45,12 @@ def get_registry() -> ModelRegistry:
 
 def get_llm() -> LLMClient:
     return _llm
+
+
+def get_skill_registry() -> SkillRegistry:
+    global _skills
+    if _skills is None:
+        with _runtime_lock:
+            if _skills is None:
+                _skills = build_default_skill_registry(get_runtime())
+    return _skills

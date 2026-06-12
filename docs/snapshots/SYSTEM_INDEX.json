@@ -1,8 +1,9 @@
 {
-  "snapshot_version": "CNexus L2.5 COMPLETE",
+  "snapshot_version": "CNexus L1 Memory Infrastructure COMPLETE",
   "git_tag": "gtbs-snapshot-v0.3-l2.5",
-  "date": "2026-06-10",
-  "state": "Observational → Structural Inference Phase",
+  "date": "2026-06-12",
+  "state": "L1 MemoryBlock layer live — Observational → Structural Inference Phase",
+  "persistent_memory_doc": "docs/CNEXUS_PERSISTENT_MEMORY.md",
   "governance_status": "NONE (instrumentation-only for L2/L2.5)",
   "repository": {
     "primary": "https://github.com/plusunm/CNexus",
@@ -35,6 +36,36 @@
     }
   },
   "modules": [
+    {
+      "id": "l1_memory_manager",
+      "path": "memory/manager.py",
+      "layer": "L1",
+      "description": "MemoryManager — unified L1 entry, capture_interaction, run_maintenance"
+    },
+    {
+      "id": "l1_memory_block",
+      "path": "memory/block.py",
+      "layer": "L1",
+      "description": "MemoryBlock typed state — persona/intent/emotion/working_memory/user_profile/archival_facts"
+    },
+    {
+      "id": "l1_block_store",
+      "path": "memory/block_store.py",
+      "layer": "L1",
+      "description": "MemoryBlockStore — CRUD, versioning, provenance JSONL"
+    },
+    {
+      "id": "l1_block_lifecycle",
+      "path": "memory/lifecycle.py",
+      "layer": "L1",
+      "description": "BlockLifecycleManager — decay, protect, archival compress"
+    },
+    {
+      "id": "l1_recall_engine",
+      "path": "runtime/router.py",
+      "layer": "L1+L2",
+      "description": "HierarchicalRecallEngine — label-priority block recall + episodic fallback"
+    },
     {
       "id": "gtbs",
       "path": "core/governance/gtbs/",
@@ -144,6 +175,9 @@
     "scripts/run_staging.ps1"
   ],
   "test_suites": [
+    "tests/test_memory_blocks.py",
+    "tests/test_recall_blocks.py",
+    "tests/test_block_lifecycle.py",
     "tests/test_gtbs_l2_semantic.py",
     "tests/test_gtbs_l2_temporal.py",
     "tests/test_gtbs_l2_fusion.py",

@@ -162,7 +162,15 @@ Reads from observability streams only (`gtbs_shadow.jsonl`, `ecology_metrics.jso
 | **v0.2** | Temporal window synthesis (drift / stability / pressure) — **DONE** |
 | **v0.3** | Cross-stream semantic fusion (field cognition) — **DONE** |
 | **v0.5** | Latent attractor inference (structural inference) — **DONE** |
-| L3 | Attractor → governance boundary layer (not started) |
+| **L3-G0** | Governance boundary probe (S13–S16) — **DONE** |
+| **L3-G1** | Constraint graph + arbitration simulation — **DONE** |
+| **L3-G2** | Constraint execution shadow (counterfactual) — **DONE** |
+| **L3-G3** | Power field optimization (non-executing) — **DONE** |
+| **L3-G4** | Meta-governance reflection (reflexivity / meta-drift) — **DONE** |
+| **L3-G5** | Meta-meta governance boundary (layer genesis / ontology drift) — **DONE** |
+| **L3-G6** | Collapse stability / explainability anchors under hierarchy blur — **DONE** |
+| **L3-G7** | Layerless kernel (field / attractor / trace — no hierarchy) — **DONE** |
+| L3-G8 | Temporal field collapse physics — not started |
 | v0.4 | Human semantic query (read-only) |
 
 ---

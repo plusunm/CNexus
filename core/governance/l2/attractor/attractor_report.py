@@ -33,6 +33,9 @@ def _risk_surface(
     reality_detach = min(1.0, reality_detach)
 
     return {
+        "lock_in_signal": round(lock_in, 2),
+        "fragmentation_signal": round(fragmentation, 2),
+        "reality_detachment_signal": round(reality_detach, 2),
         "lock_in_risk": round(lock_in, 2),
         "fragmentation_risk": round(fragmentation, 2),
         "reality_detachment_risk": round(reality_detach, 2),
