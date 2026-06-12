@@ -1,0 +1,38 @@
+name: CNexus CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test-and-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Forbidden write path check
+        run: python scripts/check_write_paths.py
+
+      - name: Pytest suite
+        run: python -m pytest tests/ -q --tb=line -x
+
+      - name: Benchmark suite
+        run: python scripts/run_benchmarks.py
+
+  semantic-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Semantic Safety Checker
+        run: python scripts/semantic_safety_check.py --strict --v3 --json-out docs/semantic_safety/v3_baseline.json

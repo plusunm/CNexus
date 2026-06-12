@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,7 @@ from core.validation.validation_orchestrator import StabilityValidationOrchestra
 from memory.filter import CaptureFilter
 from memory.lifecycle import MemoryLifecycleManager, MemoryManagementConfig
 from memory.manager import MemoryManager
+from memory.runtime_guard import runtime_write_context
 from memory.schema import Memory
 from runtime.attention import DynamicAttentionField
 from runtime.cognitive_apply import process_parsed_state
@@ -45,7 +47,9 @@ from runtime.predictive_loop import PredictiveSelf
 from core.governance.deliberation import DeliberativeGovernance
 from core.governance.pipeline import GovernancePipeline
 from runtime.recall_pipeline import RecallPipeline
-from memory.runtime_guard import runtime_write_context
+from brain_memory.runtime_state import dump_runtime_state, restore_runtime_state
+from core.observability.metrics import get_metrics, timed
+from core.runtime.entry_registry import RUNTIME_ENTRY_MATRIX, get_entry_spec
 from runtime.router import HierarchicalRecallEngine
 from runtime.state import CognitiveStateManager
 from storage.manager import UnifiedStorageManager
@@ -93,6 +97,11 @@ class BrainMemoryRuntime:
                 self.config_loader.config = json.load(fh)
         cfg = self.config_loader.config
 
+        if os.environ.get("CNEXUS_ENV") == "production" and os.environ.get("CNEXUS_BYPASS_RUNTIME_GUARD") == "1":
+            raise RuntimeError(
+                "CNEXUS_BYPASS_RUNTIME_GUARD=1 is forbidden when CNEXUS_ENV=production"
+            )
+
         self.base_dir = resolve_memory_dir(self.project_root, base_dir)
         self.embedder = EmbeddingService(
             host=cfg.get("ollama_host", "http://localhost:11434"),
@@ -125,6 +134,13 @@ class BrainMemoryRuntime:
         self.deliberation = DeliberativeGovernance()
         self.context_engine = ContextAssemblyEngine(self.attention)
 
+        safety_cfg = cfg.get("safety") or {}
+        write_gate_threshold = float(
+            safety_cfg.get("write_gate_threshold")
+            or cfg.get("write_gate_threshold", 0.65)
+        )
+        self.policy = GovernancePolicyDescriptor(write_gate_threshold=write_gate_threshold)
+
         # Layer 3 — Personality Continuity
         self.dna_engine = PersonalityDNAEngine()
         self.narrative = NarrativeBuilder(self.dna_engine)
@@ -147,7 +163,6 @@ class BrainMemoryRuntime:
             reflection=self.reflection_pipeline,
             state_manager=self.state,
         )
-        self.policy = GovernancePolicyDescriptor()
 
         # Layer 1 — Memory Manager (structured blocks + episodic storage)
         self.memory_manager = MemoryManager(
@@ -214,6 +229,7 @@ class BrainMemoryRuntime:
         self._gtbs_observer = None
         self._capture_boundary = None
         self._attention_turn = 0
+        self._last_reflection_turn = -999
         logger.info(
             "CNexus v%s initialized — %s Cognitive Runtime",
             "1.0.0-g1",
@@ -604,8 +620,21 @@ class BrainMemoryRuntime:
                 )
         return result
 
-    def recall(self, query: str, top_k: Optional[int] = None) -> str:
-        return self.recall_pipeline.recall(query, top_k=top_k)
+    def recall(self, query: str, top_k: Optional[int] = None, *, use_attention: bool = True) -> str:
+        return self.recall_pipeline.recall(query, top_k=top_k, use_attention=use_attention)
+
+    def dump_state(self) -> Dict[str, Any]:
+        """Production snapshot — see brain_memory.runtime_state."""
+        return dump_runtime_state(self)
+
+    def restore_state(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
+        return restore_runtime_state(self, snapshot)
+
+    def get_entry_matrix(self) -> Dict[str, Any]:
+        return dict(RUNTIME_ENTRY_MATRIX)
+
+    def get_metrics_snapshot(self) -> Dict[str, Any]:
+        return get_metrics().snapshot()
 
     @property
     def self_model(self):
@@ -1013,26 +1042,59 @@ class BrainMemoryRuntime:
         self.belief_engine._persist_narrative_block()
         self._sync_beliefs_from_self_model()
 
-        meta_reflection = self.reflective_engine.reflect_on_interaction(
-            response,
-            {
-                "query": text,
-                "user_input": text,
-                "prediction_error": error,
-                "context_preview": context[:200] if context else "",
-            },
-            feedback=None,
-            use_llm=self.config.get("reflective_use_llm", True),
-        )
-        meta_reflection_payload = meta_reflection.model_dump(mode="json")
-        reflection_triggered = error > 0.4 or bool(
-            meta_reflection_payload.get("inner_thought") or meta_reflection_payload.get("scene")
-        )
+        meta_reflection_payload: Dict[str, Any] = {}
+        reflection_triggered = False
+        cooldown = int(self.config.get("reflection_cooldown_turns", 0))
+        turns_since_reflection = self._attention_turn - self._last_reflection_turn
+        use_refl_llm = bool(self.config.get("reflective_use_llm", True))
+        if cooldown > 0 and turns_since_reflection < cooldown:
+            use_refl_llm = False
+
+        if use_refl_llm or cooldown == 0:
+            meta_reflection = self.reflective_engine.reflect_on_interaction(
+                response,
+                {
+                    "query": text,
+                    "user_input": text,
+                    "prediction_error": error,
+                    "context_preview": context[:200] if context else "",
+                },
+                feedback=None,
+                use_llm=use_refl_llm,
+            )
+            meta_reflection_payload = meta_reflection.model_dump(mode="json")
+            reflection_triggered = error > 0.4 or bool(
+                meta_reflection_payload.get("inner_thought") or meta_reflection_payload.get("scene")
+            )
+            if reflection_triggered:
+                self._last_reflection_turn = self._attention_turn
 
         value_alignment = self.intent_engine.check_value_alignment(self.values_governance)
         value_alignment_payload = (
             value_alignment.model_dump(mode="json") if value_alignment else None
         )
+
+        values_mode = str((self.config.get("governance") or {}).get("values_mode", "OBSERVE"))
+        values_decision = self.governance_pipeline.apply_values_enforcement(
+            values_mode, response, value_alignment
+        )
+        if values_decision.action == "BLOCK":
+            safe = values_decision.safe_text or response
+            return self._finalize_interaction_result(
+                {
+                    "ok": False,
+                    "reason": values_decision.reason,
+                    "response": safe,
+                    "reply": safe,
+                    "governance_decision": values_decision.to_dict(),
+                    "value_alignment": value_alignment_payload,
+                    **self._interaction_api_fields(),
+                },
+                user_id=user_id,
+                meta=meta,
+            )
+        if values_decision.action == "REWRITE" and values_decision.safe_text:
+            response = values_decision.safe_text
 
         self.working_self.update_prediction_error()
         self.working_self.add_reflection(reflection)
@@ -1291,6 +1353,8 @@ class BrainMemoryRuntime:
                 "trajectory": self.cdg.trajectory_report(last_n=10),
             },
             "timestamp": datetime.now().isoformat(),
+            "metrics": get_metrics().snapshot(),
+            "last_recall_explain": getattr(self.recall_pipeline, "last_explain", {}),
         }
 
     def get_full_status(self) -> Dict[str, Any]:

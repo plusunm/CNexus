@@ -5,6 +5,7 @@
   "reflective_use_llm": true,
   "reflective_llm_model": "llama3.2",
   "reflective_llm_temperature": 0.3,
+  "reflection_cooldown_turns": 0,
   "proactive": {
     "enabled": true,
     "min_motivation_threshold": 0.72,
@@ -54,7 +55,8 @@
     "drift_warning_threshold": 0.18,
     "drift_critical_threshold": 0.45,
     "max_entropy": 0.65,
-    "governance_interval_hours": 6
+    "governance_interval_hours": 6,
+    "values_mode": "OBSERVE"
   },
   "cdg": {
     "min_reality_coupling": 0.65,

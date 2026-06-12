@@ -9,7 +9,8 @@ from memory.schema import Memory
 class MemoryWriteGate:
     """Memory Write Gate — 所有记忆写入的宪法守门人"""
 
-    def __init__(self):
+    def __init__(self, threshold: float = 0.65):
+        self.threshold = float(threshold)
         self.audit_log: List[SafetyAuditRecord] = []
 
     def validate_content(self, content: str, role: str = "user", importance: float = 0.5) -> bool:
@@ -44,7 +45,7 @@ class MemoryWriteGate:
         if memory.role == "user":
             risk_score *= 0.7
 
-        allow = risk_score < 0.65
+        allow = risk_score < self.threshold
 
         self.audit_log.append(
             SafetyAuditRecord(

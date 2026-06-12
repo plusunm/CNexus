@@ -8,6 +8,8 @@ from typing import Any, Dict, Literal, Optional, Tuple
 
 GovernanceAction = Literal["ALLOW", "BLOCK", "REWRITE", "FLAG"]
 
+ValuesEnforcementMode = Literal["OBSERVE", "FLAG", "REWRITE", "BLOCK"]
+
 _SAFE_FALLBACKS: Dict[str, str] = {
     "identity_anchor_violation": (
         "I need to stay consistent with who I am. I can't adopt a conflicting identity, "
@@ -158,3 +160,42 @@ class GovernancePipeline:
         elif pre.value_alignment:
             post.value_alignment = pre.value_alignment
         return post, post.cdg
+
+    def apply_values_enforcement(
+        self,
+        mode: str,
+        response: str,
+        value_record: Any,
+    ) -> UnifiedGovernanceDecision:
+        """OBSERVE | FLAG | REWRITE | BLOCK — post-alignment response policy."""
+        mode_upper = (mode or "OBSERVE").upper()
+        if mode_upper == "OBSERVE" or value_record is None:
+            return UnifiedGovernanceDecision(action="ALLOW", reason="values_observe")
+
+        status = getattr(value_record, "status", None)
+        status_value = str(getattr(status, "value", status or "")).lower()
+        if status_value in ("aligned",):
+            return UnifiedGovernanceDecision(action="ALLOW", reason="values_aligned")
+
+        payload = value_record.model_dump(mode="json") if hasattr(value_record, "model_dump") else {}
+        if mode_upper == "FLAG":
+            return UnifiedGovernanceDecision(
+                action="FLAG",
+                reason="values_misaligned",
+                value_alignment=payload,
+            )
+        if mode_upper == "REWRITE":
+            return UnifiedGovernanceDecision(
+                action="REWRITE",
+                reason="values_misaligned",
+                safe_text=self.safe_fallback("values_misaligned", response),
+                value_alignment=payload,
+            )
+        if mode_upper == "BLOCK":
+            return UnifiedGovernanceDecision(
+                action="BLOCK",
+                reason="values_misaligned",
+                safe_text=self.safe_fallback("values_misaligned", response),
+                value_alignment=payload,
+            )
+        return UnifiedGovernanceDecision(action="ALLOW", reason="values_unknown_mode")

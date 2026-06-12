@@ -5,8 +5,8 @@ from core.governance.safety.write_gate import MemoryWriteGate
 class GovernancePolicyDescriptor:
     """Governance policy descriptor — approval gates for runtime (CDG-adjacent)."""
 
-    def __init__(self):
-        self.write_gate = MemoryWriteGate()
+    def __init__(self, *, write_gate_threshold: float = 0.65):
+        self.write_gate = MemoryWriteGate(threshold=write_gate_threshold)
         self.constitution = CognitiveConstitution()
 
     def approve_memory_write(self, memory) -> bool:
