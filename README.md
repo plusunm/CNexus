@@ -68,7 +68,8 @@ Foundation Model
 Agent Runtime
     ↓
 CNexus Cognitive Runtime
-    ├── Layer 1 — Memory Infrastructure (LanceDB + Kuzu)
+    ├── Layer 1 — Memory Infrastructure (MemoryBlockStore + LanceDB + Kuzu)
+    │       Core / Episodic / Attention hybrid blocks · priority recall
     ├── Layer 2 — Cognitive Runtime (router, attention, context, state)
     ├── Layer 3 — Personality Continuity (DNA, narrative, belief)
     ├── Layer 3.5 — Reflective Continuity (trait reflection → narrative + belief loop)

@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
-from memory.block import BLOCK_SPECS, MemoryBlock
+from memory.block import (
+    BLOCK_SPECS,
+    EPISODIC_TYPE_TO_LABEL,
+    EpisodicMemoryBlock,
+    MemoryBlock,
+    create_episodic_block,
+)
 from memory.block_store import MemoryBlockStore
 from memory.filter import CaptureFilter
 from memory.governance_hook import BlockGovernanceHook, GovernanceResult
@@ -360,7 +367,97 @@ class MemoryManager:
             "block_label": resolved_label,
             "block": block_result,
             "governance": governance_info,
+            "episodic_block": self._mirror_episodic_block(
+                role=role,
+                content=content,
+                layer=layer,
+                episodic_id=episodic_id,
+                importance=importance,
+                meta=meta,
+            ),
         }
+
+    def _mirror_episodic_block(
+        self,
+        *,
+        role: str,
+        content: str,
+        layer: str,
+        episodic_id: str,
+        importance: float,
+        meta: Dict,
+    ) -> Optional[MemoryBlock]:
+        """Write typed episodic block entries alongside vector/graph capture."""
+        episodic_type = str(meta.get("episodic_type") or self._infer_episodic_type(layer, role))
+        label = EPISODIC_TYPE_TO_LABEL.get(episodic_type, "episodic_dialogue")
+        block = self.get_active_block(label, touch=False)
+        if block is None:
+            block = create_episodic_block(episodic_type)
+            block = self.blocks.create(block)
+        if not isinstance(block, EpisodicMemoryBlock):
+            return block
+        block.add_structured_entry(
+            {
+                "role": role,
+                "content": content,
+                "layer": layer,
+                "importance": importance,
+                "episodic_id": episodic_id,
+                "episodic_type": episodic_type,
+            }
+        )
+        if meta.get("graph_node_id"):
+            block.graph_node_id = str(meta["graph_node_id"])
+        if meta.get("embedding_ref"):
+            block.embedding_ref = str(meta["embedding_ref"])
+        else:
+            block.embedding_ref = episodic_id
+        return self.blocks.save(block)
+
+    @staticmethod
+    def _infer_episodic_type(layer: str, role: str) -> str:
+        if layer in {"decision", "decision_trace"}:
+            return "decision"
+        if layer in {"event", "event_graph"}:
+            return "event"
+        if role in {"system", "assistant", "user"} or layer in {"episodic", "dialogue", "dialogue_trace"}:
+            return "dialogue"
+        return "dialogue"
+
+    def append_episodic_entry(
+        self,
+        episodic_type: str,
+        entry: Dict,
+        *,
+        episodic_id: Optional[str] = None,
+    ) -> MemoryBlock:
+        label = EPISODIC_TYPE_TO_LABEL.get(episodic_type, "episodic_dialogue")
+        block = self.get_active_block(label, touch=False)
+        if block is None:
+            block = self.blocks.create(create_episodic_block(episodic_type))
+        if isinstance(block, EpisodicMemoryBlock):
+            payload = dict(entry)
+            if episodic_id:
+                payload["episodic_id"] = episodic_id
+            block.add_structured_entry(payload)
+            if episodic_id:
+                block.embedding_ref = episodic_id
+            return self.blocks.save(block)
+        return block
+
+    def sync_attention_block(
+        self,
+        focus_scores: Dict[str, float],
+        top_focus: List[str],
+        turn: int,
+    ) -> MemoryBlock:
+        return self.blocks.sync_attention_from_dynamic(focus_scores, top_focus, turn)
+
+    def get_attention_snapshot(self) -> Dict:
+        block = self.blocks.get_attention_snapshot()
+        if block is None:
+            return {}
+        return block.read_snapshot()
 
     # ── Episodic pass-through (interaction stream) ─────────────────────
 

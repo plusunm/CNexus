@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from memory.block import LABEL_PRIORITY
 from memory.manager import MemoryManager
-from runtime.router import HierarchicalRecallEngine, HierarchicalRecallRouter
+from runtime.router import HierarchicalRecallEngine, HierarchicalRecallRouter, RecallResult
 from storage.manager import UnifiedStorageManager
 
 
@@ -72,6 +72,22 @@ class TestHierarchicalRecallEngine(unittest.TestCase):
         results = engine.hybrid_recall("identity", top_k=4)
         self.assertTrue(all(r.get("_source") != "block" for r in results))
         self.assertTrue(len(results) > 0)
+
+    def test_unified_recall_uses_block_store(self):
+        results = self.engine.recall("我的长期目标", top_k=6)
+        self.assertTrue(any(r.source == "block" for r in results))
+        self.assertIn("persona", {r.label for r in results if r.source == "block"})
+        stats = self.engine.get_stats()
+        self.assertGreaterEqual(stats.get("returned", 0), 1)
+
+    def test_recall_episodic_only_typed_blocks(self):
+        self.manager.append_episodic_entry(
+            "dialogue",
+            {"speaker": "user", "utterance": "下一步做什么"},
+        )
+        results = self.engine.recall_episodic_only("dialogue", limit=3)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].source, "episodic")
 
     def test_label_intent_detection(self):
         intent = self.engine.detect_label_intent("我的长期目标是什么")

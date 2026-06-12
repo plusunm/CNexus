@@ -5,7 +5,13 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from memory.block import BLOCK_SPECS, GovernanceStatus, MemoryBlock
+from memory.block import (
+    BLOCK_SPECS,
+    EpisodicMemoryBlock,
+    GovernanceStatus,
+    MemoryBlock,
+    create_episodic_block,
+)
 from memory.block_store import MemoryBlockStore
 from memory.governance_hook import BlockGovernanceHook
 from memory.manager import LAYER_TO_BLOCK, MemoryManager
@@ -32,6 +38,36 @@ class TestMemoryBlockStore(unittest.TestCase):
         self.assertIsNotNone(fetched)
         self.assertEqual(fetched.content, block.content)
         self.assertEqual(fetched.version, 1)
+
+    def test_label_api_and_recall(self):
+        self.store.create_block("persona", {"core_traits": ["curious"]})
+        self.store.update_block("emotion", {"valence": 0.8}, reason="test")
+        recalled = self.store.recall_by_priority(top_k=3)
+        labels = [b.label for b in recalled]
+        self.assertIn("persona", labels)
+        self.assertIn("emotion", labels)
+
+    def test_episodic_recall_and_attention_sync(self):
+        event = self.store.create_block("episodic_event")
+        assert isinstance(event, EpisodicMemoryBlock)
+        event.add_structured_entry({"action": "deploy", "outcome": "ok"})
+        self.store.save(event)
+        events = self.store.recall_episodic("event", limit=5)
+        self.assertEqual(len(events), 1)
+        attn = self.store.sync_attention_from_dynamic(
+            {"persona": 0.9, "working_memory": 0.6},
+            ["persona"],
+            turn=7,
+        )
+        self.assertEqual(attn.label, "attention_state")
+        self.assertEqual(attn.read_snapshot()["last_sync_turn"], 7)
+
+    def test_stats_and_governance_blocks(self):
+        self.store.create_block("persona", "stable self")
+        stats = self.store.stats()
+        self.assertGreaterEqual(stats["total_blocks"], 1)
+        gov_blocks = self.store.get_blocks_for_governance_check()
+        self.assertTrue(any(b.label == "persona" for b in gov_blocks))
 
     def test_singleton_label_upsert(self):
         first = self.store.create(MemoryBlock.from_label("intent", "完成 L1 MemoryBlock 实现"))
@@ -170,6 +206,55 @@ class TestMemoryManager(unittest.TestCase):
         self.assertIsNotNone(result["episodic_id"])
         self.assertIsNone(result["block_label"])
         self.assertIsNone(result["block"])
+        self.assertIsNotNone(result.get("episodic_block"))
+        dialogue = self.manager.get_active_block("episodic_dialogue")
+        self.assertIsNotNone(dialogue)
+
+
+class TestEpisodicAndAttentionBlocks(unittest.TestCase):
+    def setUp(self):
+        self._tmpdir = tempfile.mkdtemp()
+        self.manager = MemoryManager(self._tmpdir, storage=None)
+
+    def test_create_episodic_block_factory(self):
+        block = create_episodic_block(
+            "decision",
+            {"context": "选择架构", "chosen": "Option 2", "rationale": "uniform block API"},
+        )
+        self.assertEqual(block.label, "episodic_decision")
+        self.assertEqual(block.episodic_type, "decision")
+        self.assertEqual(len(block.get_recent()), 1)
+
+    def test_attention_state_hybrid_sync(self):
+        from runtime.attention import DynamicAttentionField
+
+        field = DynamicAttentionField()
+        field.activate(
+            {
+                "memory_id": "persona-1",
+                "_label": "persona",
+                "content": "稳定人格",
+                "attention_score": 0.9,
+            }
+        )
+        block = self.manager.sync_attention_block(
+            field.focus_scores_by_label(),
+            field.top_focus_labels(),
+            turn=1,
+        )
+        self.assertEqual(block.label, "attention_state")
+        snapshot = self.manager.get_attention_snapshot()
+        self.assertIn("persona", snapshot.get("focus_scores", {}))
+        self.assertEqual(snapshot.get("last_sync_turn"), 1)
+
+    def test_append_episodic_entry(self):
+        block = self.manager.append_episodic_entry(
+            "event",
+            {"action": "deploy", "outcome": "success"},
+            episodic_id="mem-123",
+        )
+        self.assertEqual(block.label, "episodic_event")
+        self.assertEqual(block.embedding_ref, "mem-123")
 
 
 class TestRuntimeCaptureRouting(unittest.TestCase):

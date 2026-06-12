@@ -22,6 +22,8 @@ class TestModuleWiring(unittest.TestCase):
         self.runtime.capture("user", "长期目标是维护身份连续性", layer="goal", importance=0.9)
         self.runtime.recall("我的长期目标")
         self.assertGreaterEqual(self.runtime.state.cognitive_load, 0.0)
+        snapshot = self.runtime.memory.get_attention_snapshot()
+        self.assertGreaterEqual(snapshot.get("last_sync_turn", 0), 1)
 
     def test_get_full_status(self):
         status = self.runtime.get_full_status()

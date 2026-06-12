@@ -1,7 +1,7 @@
 import math
 import time
 from collections import OrderedDict
-from typing import Dict, List
+from typing import Any, Dict, List
 
 
 class DynamicAttentionField:
@@ -99,3 +99,35 @@ class DynamicAttentionField:
         for mem in candidates:
             self.activate(mem, current_context)
         return self.working_memory_snapshot()
+
+    def focus_scores_by_label(self) -> Dict[str, float]:
+        scores: Dict[str, float] = {}
+        for mem in self.working_memory.values():
+            label = (
+                mem.get("block_label")
+                or mem.get("_label")
+                or mem.get("label")
+                or mem.get("_layer")
+                or "working_memory"
+            )
+            scores[label] = scores.get(label, 0.0) + float(mem.get("attention_score", 0.0))
+        total = sum(scores.values()) or 1.0
+        return {label: round(score / total, 4) for label, score in scores.items()}
+
+    def top_focus_labels(self, n: int = 5) -> List[str]:
+        ranked = sorted(self.focus_scores_by_label().items(), key=lambda item: item[1], reverse=True)
+        return [label for label, _ in ranked[:n]]
+
+    def hydrate_from_snapshot(self, snapshot: Dict[str, Any]) -> None:
+        focus_scores = snapshot.get("focus_scores") or {}
+        if not focus_scores:
+            return
+        for label, weight in focus_scores.items():
+            self.working_memory[label] = {
+                "memory_id": label,
+                "block_label": label,
+                "_label": label,
+                "content": f"attention snapshot for {label}",
+                "attention_score": float(weight),
+                "last_activated": time.time(),
+            }

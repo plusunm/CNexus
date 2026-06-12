@@ -140,6 +140,7 @@ class BrainMemoryRuntime:
         self.memory_manager.set_embedder(self.embedder)
         self.memory_manager.configure_lifecycle(self._lifecycle)
         self.router.set_memory_manager(self.memory_manager)
+        self.router.warm_up()
 
         # L3 — Emotion + Intent continuity (MemoryBlocks)
         self.emotion_engine = EmotionEngine(self.memory_manager)
@@ -181,6 +182,7 @@ class BrainMemoryRuntime:
         self.runtime_mode = cfg.get("runtime_mode", "g2")
         self._gtbs_observer = None
         self._capture_boundary = None
+        self._attention_turn = 0
         logger.info(
             "CNexus v%s initialized — %s Cognitive Runtime",
             "1.0.0-g1",
@@ -265,6 +267,12 @@ class BrainMemoryRuntime:
     def governance(self):
         """CDG is the sole governance entry; stability coordinator is a subordinate probe."""
         return self.cdg
+
+    def _sync_attention_snapshot(self) -> None:
+        self._attention_turn += 1
+        focus_scores = self.attention.focus_scores_by_label()
+        top_focus = self.attention.top_focus_labels()
+        self.memory_manager.sync_attention_block(focus_scores, top_focus, self._attention_turn)
 
     def _persist_reflection_memory(self, role: str, content: str, **kwargs) -> str:
         return self.storage.capture_memory(
@@ -519,6 +527,7 @@ class BrainMemoryRuntime:
         activated = self.attention.attention_competition(recall_results, query)
         self.state.sync_from_attention(activated)
         self.working_self.sync_to_legacy(self.state)
+        self._sync_attention_snapshot()
 
         context = self.context_engine.assemble(query, recall_results)
         emotion_context = self.emotion_engine.format_context_block()
@@ -1044,6 +1053,7 @@ class BrainMemoryRuntime:
             "version": "1.0.0-g1",
             "layers": {
                 "storage": {"base_dir": self.base_dir},
+                "memory_blocks": self.memory_manager.block_stats(),
                 "runtime": {
                     "working_memory": state["working_memory_count"],
                     "cognitive_load": state["cognitive_state"].get("cognitive_load"),
