@@ -136,6 +136,7 @@ class TestIntentRuntimeIntegration(unittest.TestCase):
         runtime.config_loader.config["proactive"] = {
             "enabled": True,
             "min_motivation_threshold": 0.5,
+            "max_progress": 1.0,
             "inject_into_reply": True,
         }
         with runtime_write_context():

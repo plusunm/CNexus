@@ -31,6 +31,9 @@ LAYER_TO_BLOCK: Dict[str, str] = {
     "relationship": "user_profile",
 }
 
+# Structured blocks owned by dedicated engines — no raw text dual-write on capture.
+ENGINE_MANAGED_BLOCK_LABELS = frozenset({"intent"})
+
 
 class MemoryManager:
     """
@@ -357,7 +360,10 @@ class MemoryManager:
         block_result: Optional[Union[MemoryBlock, Dict]] = None
         governance_info: Optional[Dict] = None
 
-        if resolved_label:
+        if resolved_label and (
+            resolved_label not in ENGINE_MANAGED_BLOCK_LABELS
+            or meta.get("force_block_write")
+        ):
             block_result = self._write_block_for_label(
                 resolved_label,
                 content,

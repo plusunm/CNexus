@@ -12,6 +12,7 @@ from core.llm_client import LLMClient
 from core.model_registry import ModelProfile
 from core.embedding import EmbeddingService
 from core.paths import get_project_root, resolve_memory_dir
+from core.goal.goal_manager import GoalManager
 from core.governance.cdg import CDGKernel, apply_cdg_state, snapshot_cdg_state
 from core.governance.coordinator import StabilityCoordinator
 from core.governance.values_governance import ValuesGovernance
@@ -22,6 +23,7 @@ from core.personality.dna_engine import PersonalityDNAEngine
 from core.personality.emotion_engine import EmotionEngine
 from core.personality.intent_engine import (
     PROACTIVE_MOTIVATION_THRESHOLD,
+    PROACTIVE_PROGRESS_CAP,
     IntentEngine,
     ProactiveTrigger,
 )
@@ -184,6 +186,11 @@ class BrainMemoryRuntime:
         # L3 — Emotion + Intent continuity (MemoryBlocks)
         self.emotion_engine = EmotionEngine(self.memory_manager)
         self.intent_engine = IntentEngine(self.memory_manager)
+        self.goal_manager = GoalManager(
+            self.intent_engine,
+            narrative_builder=self.narrative,
+            values_governance=None,
+        )
         self._llm_client = LLMClient()
         self.reflective_engine = ReflectiveEngine(
             self.memory_manager,
@@ -198,6 +205,7 @@ class BrainMemoryRuntime:
             self.memory_manager,
             persona_values_provider=self._get_persona_core_values,
         )
+        self.goal_manager.values = self.values_governance
         self.sleep_time_compute = SleepTimeCompute(
             self.memory_manager,
             reflective_engine=self.reflective_engine,
@@ -261,6 +269,10 @@ class BrainMemoryRuntime:
     @property
     def intent(self):
         return self.intent_engine
+
+    @property
+    def goal(self):
+        return self.goal_manager
 
     @property
     def reflective(self):
@@ -558,11 +570,13 @@ class BrainMemoryRuntime:
 
         intent_layers = {"goal", "identity", "episodic", "working"}
         if meta.get("update_intent", True) and layer in intent_layers:
-            intent_state = self.intent_engine.update_from_interaction(
+            intent_state = self.goal_manager.mount_on_capture(
                 role,
                 content,
+                layer,
+                importance,
                 context=meta.get("context"),
-                importance=importance,
+                update_intent=True,
             )
             if meta.get("return_detail"):
                 capture_result["intent"] = intent_state.model_dump(mode="json")
@@ -844,7 +858,8 @@ class BrainMemoryRuntime:
             cfg.get("min_motivation_threshold", PROACTIVE_MOTIVATION_THRESHOLD)
         )
         trigger: ProactiveTrigger = self.intent_engine.trigger_proactive(
-            min_motivation=threshold
+            min_motivation=threshold,
+            max_progress=float(cfg.get("max_progress", PROACTIVE_PROGRESS_CAP)),
         )
         if not trigger.should_trigger:
             return reply, None
@@ -1208,12 +1223,11 @@ class BrainMemoryRuntime:
             },
         )
 
-        gov = self.run_governance_cycle()
-
         final_reply, proactive_info = self._apply_proactive_loop(
             response,
             allow_proactive=allow_proactive,
         )
+        gov = self.run_governance_cycle()
         assistant_capture_id = self.capture(
             "assistant", final_reply, importance=0.55, **meta
         )
@@ -1291,6 +1305,7 @@ class BrainMemoryRuntime:
             result = self.stability.run_governance_cycle()
             result["cdg"] = cdg_snapshot
             result["cdg_trajectory"] = self.cdg.trajectory_report()
+            result["goal_layer"] = self.goal_manager.observe_governance(self.values_governance)
             if self.config.get("enable_metabolic", True):
                 result["memory_maintenance"] = self.maintain_memory()
         return result

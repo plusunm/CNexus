@@ -108,7 +108,26 @@ class IntentEngine:
         self.memory.protect_block(INTENT_LABEL)
         return created
 
+    def _compact_state(self, state: IntentState, *, limit: int = 1150) -> IntentState:
+        """Keep intent JSON under block limit (1200) to avoid truncated invalid JSON."""
+        working = state.model_copy(deep=True)
+        for _ in range(8):
+            if len(self._dump_state(working)) <= limit:
+                return working
+            active = [g for g in working.active_goals if g.status == GoalStatus.ACTIVE]
+            active.sort(key=lambda g: g.priority * g.motivation, reverse=True)
+            if len(active) > 1:
+                keep = {g.goal_id for g in active[: max(1, len(active) - 1)]}
+                working.active_goals = [
+                    g for g in working.active_goals if g.goal_id in keep or g.status != GoalStatus.ACTIVE
+                ]
+            for goal in working.active_goals:
+                if goal.status == GoalStatus.ACTIVE and len(goal.description) > 48:
+                    goal.description = goal.description[:48]
+        return working
+
     def _persist_state(self, state: IntentState, *, importance: float = 0.7) -> IntentState:
+        state = self._compact_state(state)
         block = self._get_or_create_block()
         payload = self._dump_state(state)
         gov = self.memory.governance.check(INTENT_LABEL, payload, importance)

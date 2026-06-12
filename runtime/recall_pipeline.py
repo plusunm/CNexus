@@ -45,6 +45,8 @@ class RecallPipeline:
             else:
                 recall_results = rt.router.hybrid_recall(query, top_k=k)
 
+            recall_results = self._apply_goal_ranking(recall_results, query)
+
             if use_attention:
                 activated = rt.attention.attention_competition(recall_results, query)
                 recall_results = self._apply_attention_ranking(recall_results, query)
@@ -104,6 +106,46 @@ class RecallPipeline:
         }
         get_metrics().set_gauge("recall.context_chars", float(len(full)))
         return full
+
+    def _apply_goal_ranking(
+        self,
+        recall_results: List[Dict[str, Any]],
+        query: str,
+    ) -> List[Dict[str, Any]]:
+        """Boost recall items aligned with the top active goal."""
+        boost = self.runtime.intent_engine.get_motivation_boost()
+        goals = self.runtime.intent_engine.get_active_goals(top_k=1)
+        if boost <= 0 or not goals:
+            return recall_results
+
+        goal_text = (goals[0].description or "").lower()
+        query_lower = (query or "").lower()
+        tokens = [
+            token
+            for token in goal_text.replace("，", " ").replace("。", " ").split()
+            if len(token) >= 2
+        ][:10]
+
+        for item in recall_results:
+            label = (item.get("_label") or item.get("label") or item.get("_layer") or "").lower()
+            content = (item.get("content") or item.get("text") or "").lower()
+            aligned = label == "intent" or any(token in content or token in query_lower for token in tokens)
+            if not aligned:
+                continue
+            base = (
+                item.get("_final_score")
+                or item.get("_cognitive_score")
+                or item.get("_hybrid_score")
+                or 0.5
+            )
+            item["_goal_boost"] = round(boost, 4)
+            item["_final_score"] = round(float(base) * (1.0 + boost), 5)
+
+        recall_results.sort(
+            key=lambda x: float(x.get("_final_score") or x.get("_cognitive_score") or 0.0),
+            reverse=True,
+        )
+        return recall_results
 
     def _apply_attention_ranking(
         self,
