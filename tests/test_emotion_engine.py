@@ -12,7 +12,7 @@ from memory.manager import MemoryManager
 class TestEmotionEngine(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
         self.engine = EmotionEngine(self.manager)
 
     def test_creates_emotion_block_on_first_update(self):

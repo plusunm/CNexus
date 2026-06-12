@@ -33,6 +33,49 @@ class GovernanceStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class BlockType(str, Enum):
+    """Mid-term typed block registry — values are canonical storage labels."""
+
+    PERSONA = "persona"
+    EMOTION = "emotion"
+    INTENT = "intent"
+    WORKING_MEMORY = "working_memory"
+    USER_PROFILE = "user_profile"
+    BELIEF_STORE = "belief_store"
+    NARRATIVE = "narrative"
+    ATTENTION_STATE = "attention_state"
+    EPISODIC_EVENT = "episodic_event"
+    DIALOGUE_TRACE = "episodic_dialogue"
+    DECISION_TRACE = "episodic_decision"
+    ARCHIVAL_FACTS = "archival_facts"
+    REFLECTIVE_TRACE = "reflective_trace"
+    VALUE_ALIGNMENT_HISTORY = "value_alignment_history"
+
+    @classmethod
+    def normalize_label(cls, label: str) -> str:
+        aliases = {
+            "dialogue_trace": cls.DIALOGUE_TRACE.value,
+            "decision_trace": cls.DECISION_TRACE.value,
+            "event_graph": cls.EPISODIC_EVENT.value,
+            "belief": cls.BELIEF_STORE.value,
+            BlockType.ATTENTION_STATE.name.lower(): cls.ATTENTION_STATE.value,
+        }
+        if label in {member.value for member in cls}:
+            return label
+        return aliases.get(label, label)
+
+
+BLOCK_LABEL_ALIASES: Dict[str, str] = {
+    "dialogue_trace": "episodic_dialogue",
+    "decision_trace": "episodic_decision",
+    "event_graph": "episodic_event",
+}
+
+
+def normalize_block_label(label: str) -> str:
+    return BlockType.normalize_label(BLOCK_LABEL_ALIASES.get(label, label))
+
+
 CORE_LABELS = frozenset({"persona", "emotion", "intent", "working_memory"})
 PROFILE_LABELS = frozenset({"user_profile"})
 EPISODIC_LABELS = frozenset({"episodic_event", "episodic_dialogue", "episodic_decision"})
@@ -201,6 +244,17 @@ BLOCK_SPECS: Dict[str, Dict[str, Any]] = {
         "auto_protected": False,
         "default_priority": 7,
     },
+    "narrative": {
+        "description": "叙事自我摘要 (NarrativeBuilder cross-ref)",
+        "limit": 6000,
+        "importance": 0.72,
+        "always_in_context": False,
+        "category": BlockCategory.ARCHIVAL,
+        "governance_priority": "medium",
+        "decay_rate": 0.015,
+        "auto_protected": False,
+        "default_priority": 6,
+    },
     "value_alignment_history": {
         "description": "Intent 与核心价值观对齐检查历史",
         "limit": 4000,
@@ -222,17 +276,44 @@ LABEL_PRIORITY: Dict[str, float] = {
     "persona": 1.0,
     "intent": 0.95,
     "user_profile": 0.90,
+    "attention_state": 0.90,
     "emotion": 0.85,
     "working_memory": 0.80,
-    "attention_state": 0.78,
-    "episodic_event": 0.55,
-    "episodic_decision": 0.54,
-    "episodic_dialogue": 0.52,
+    "episodic_event": 0.70,
+    "episodic_decision": 0.60,
+    "episodic_dialogue": 0.60,
     "archival_facts": 0.50,
     "belief_store": 0.48,
+    "narrative": 0.46,
     "reflective_trace": 0.45,
     "value_alignment_history": 0.42,
 }
+
+# v0.1 HierarchicalRecall rank table (float scores, BlockType-aligned).
+RECALL_PRIORITY_RANK: Dict[str, float] = {
+    BlockType.PERSONA.value: 1.0,
+    BlockType.ATTENTION_STATE.value: 0.90,
+    BlockType.EMOTION.value: 0.85,
+    BlockType.USER_PROFILE.value: 0.80,
+    BlockType.INTENT.value: 0.78,
+    BlockType.WORKING_MEMORY.value: 0.77,
+    BlockType.EPISODIC_EVENT.value: 0.75,
+    BlockType.DIALOGUE_TRACE.value: 0.70,
+    BlockType.DECISION_TRACE.value: 0.65,
+    BlockType.BELIEF_STORE.value: 0.60,
+    BlockType.NARRATIVE.value: 0.55,
+    BlockType.ARCHIVAL_FACTS.value: 0.50,
+    BlockType.REFLECTIVE_TRACE.value: 0.45,
+    BlockType.VALUE_ALIGNMENT_HISTORY.value: 0.40,
+}
+
+
+def label_recall_priority(label: str) -> float:
+    """Return recall priority for a block label (alias-normalized)."""
+    canonical = normalize_block_label(label)
+    rank_score = RECALL_PRIORITY_RANK.get(canonical, 0.0)
+    base = LABEL_PRIORITY.get(canonical, 0.5)
+    return max(base, rank_score) if rank_score > 0 else base
 
 
 class MemoryBlock(BaseModel):
@@ -261,6 +342,7 @@ class MemoryBlock(BaseModel):
     category: str = BlockCategory.CORE.value
     embedding: Optional[List[float]] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    provenance_hash: Optional[str] = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -468,6 +550,19 @@ class EpisodicMemoryBlock(MemoryBlock):
     def payload(self) -> List[Dict[str, Any]]:
         return self.parse_payload()
 
+    @property
+    def related_blocks(self) -> List[str]:
+        return list(self.metadata.get("related_blocks") or [])
+
+    def link_blocks(self, block_ids: List[str]) -> None:
+        merged = sorted(set(self.related_blocks + [str(item) for item in block_ids if item]))
+        self.metadata["related_blocks"] = merged
+        self.touch()
+
+    def set_graph_edge(self, edge: Optional[Dict[str, Any]]) -> None:
+        self.metadata["graph_edge"] = edge
+        self.touch()
+
 
 class AttentionStateBlock(MemoryBlock):
     focus_level: float = 0.5
@@ -556,6 +651,67 @@ class AttentionStateBlock(MemoryBlock):
         self.updated_at = datetime.now()
         self.touch()
 
+    def update_from_field(
+        self,
+        field_data: Dict[str, Any],
+        *,
+        last_updated_by: str = "DynamicAttentionField",
+        turn: Optional[int] = None,
+    ) -> None:
+        """Mid-term API — sync DynamicAttentionField payload into persisted snapshot."""
+        snap = self.read_snapshot()
+        focus_scores = dict(field_data.get("focus_scores") or snap.get("focus_scores") or {})
+        top_focus = list(
+            field_data.get("top_focus")
+            or field_data.get("current_targets")
+            or snap.get("top_focus")
+            or []
+        )
+        dynamic_field = dict(field_data.get("dynamic_field") or {})
+        if dynamic_field.get("recent_topics") and not top_focus:
+            top_focus = [str(item).replace(" ", "_") for item in dynamic_field["recent_topics"]]
+        if field_data.get("focus") and not top_focus:
+            top_focus = [part.strip() for part in str(field_data["focus"]).split("+") if part.strip()]
+        sync_turn = int(
+            turn
+            if turn is not None
+            else field_data.get("last_sync_turn", snap.get("last_sync_turn", 0))
+        )
+        self.sync_from_dynamic(
+            focus_scores,
+            top_focus,
+            sync_turn,
+            reason=f"sync_from_{last_updated_by}",
+        )
+        if dynamic_field:
+            merged = dict(self.metadata.get("dynamic_field") or {})
+            merged.update(dynamic_field)
+            self.metadata["dynamic_field"] = merged
+        if field_data.get("priority") is not None:
+            self.metadata["recall_priority"] = int(field_data["priority"])
+        if field_data.get("focus"):
+            self.metadata["focus"] = str(field_data["focus"])
+        self.metadata["last_updated_by"] = last_updated_by
+
+    @property
+    def focus(self) -> str:
+        if self.metadata.get("focus"):
+            return str(self.metadata["focus"])
+        snap = self.read_snapshot()
+        targets = snap.get("top_focus") or snap.get("current_targets") or []
+        topics = (self.metadata.get("dynamic_field") or {}).get("recent_topics") or []
+        if topics:
+            return " + ".join(str(item) for item in topics[:3])
+        return " + ".join(str(item) for item in targets[:3]) or "balanced"
+
+    @property
+    def dynamic_field(self) -> Dict[str, Any]:
+        return dict(self.metadata.get("dynamic_field") or {})
+
+    @property
+    def recall_priority(self) -> int:
+        return int(self.metadata.get("recall_priority", self.priority))
+
 
 class PersonaBlock(MemoryBlock):
     label: str = "persona"
@@ -581,15 +737,67 @@ class EpisodicEventBlock(EpisodicMemoryBlock):
     label: str = "episodic_event"
     episodic_type: str = "event"
 
+    @property
+    def event_type(self) -> str:
+        recent = self.get_recent(1)
+        if recent:
+            return str(recent[0].get("type") or self.metadata.get("event_type") or "event")
+        return str(self.metadata.get("event_type") or "event")
+
 
 class DialogueTraceBlock(EpisodicMemoryBlock):
     label: str = "episodic_dialogue"
     episodic_type: str = "dialogue"
 
+    @property
+    def session_id(self) -> str:
+        return str(self.metadata.get("session_id") or "")
+
+    @property
+    def turns(self) -> List[Dict[str, Any]]:
+        return self.parse_payload()
+
+    @property
+    def summary(self) -> str:
+        if self.metadata.get("summary"):
+            return str(self.metadata["summary"])
+        recent = self.get_recent(3)
+        return " | ".join(str(item.get("content_summary", "")) for item in recent if item)
+
 
 class DecisionTraceBlock(EpisodicMemoryBlock):
     label: str = "episodic_decision"
     episodic_type: str = "decision"
+
+    @property
+    def decision_id(self) -> str:
+        recent = self.get_recent(1)
+        if recent and recent[0].get("decision_id"):
+            return str(recent[0]["decision_id"])
+        return str(self.metadata.get("decision_id") or "")
+
+    @property
+    def intent(self) -> str:
+        return str(self.metadata.get("intent") or "")
+
+    @property
+    def reasoning(self) -> str:
+        return str(self.metadata.get("reasoning") or self.metadata.get("cot") or "")
+
+    @property
+    def outcome(self) -> str:
+        recent = self.get_recent(1)
+        if recent and recent[0].get("outcome"):
+            return str(recent[0]["outcome"])
+        return str(self.metadata.get("outcome") or "")
+
+    @property
+    def linked_reflection(self) -> Optional[str]:
+        recent = self.get_recent(1)
+        if recent and recent[0].get("reflection_id"):
+            return str(recent[0]["reflection_id"])
+        value = self.metadata.get("linked_reflection")
+        return str(value) if value else None
 
 
 _BLOCK_CLASS_MAP: Dict[str, Type[MemoryBlock]] = {
@@ -640,6 +848,7 @@ def create_block_from_spec(
     initial_content: Optional[Union[str, Dict[str, Any]]] = None,
     **kwargs: Any,
 ) -> MemoryBlock:
+    label = normalize_block_label(label)
     spec = BLOCK_SPECS.get(label)
     if not spec:
         content = initial_content if isinstance(initial_content, str) else json.dumps(

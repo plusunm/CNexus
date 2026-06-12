@@ -28,7 +28,7 @@ def _backdate_block(manager: MemoryManager, block_id: str, days: int) -> None:
 class TestSleepTimeCompute(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
         emotion = EmotionEngine(self.manager)
         intent = IntentEngine(self.manager)
         self.reflective = ReflectiveEngine(self.manager, emotion, intent)

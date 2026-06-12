@@ -26,6 +26,10 @@ class ChatCompletionRequest(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Any] = "auto"
     metadata: Optional[Dict[str, Any]] = None
+    cnexus: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="CNexus extension (OpenAI SDK extra_body.cnexus)",
+    )
 
 
 class ChatCompletionChoice(BaseModel):
@@ -48,6 +52,7 @@ class ChatCompletionResponse(BaseModel):
         }
     )
     cnexus: Optional[Dict[str, Any]] = None
+    cnexus_provenance: Optional[Dict[str, Any]] = None
 
 
 class ModelCard(BaseModel):

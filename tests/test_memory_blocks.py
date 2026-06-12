@@ -117,7 +117,7 @@ class TestBlockGovernanceHook(unittest.TestCase):
 class TestMemoryManager(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
 
     def test_create_block_crud(self):
         result = self.manager.create_block(
@@ -214,7 +214,7 @@ class TestMemoryManager(unittest.TestCase):
 class TestEpisodicAndAttentionBlocks(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
 
     def test_create_episodic_block_factory(self):
         block = create_episodic_block(

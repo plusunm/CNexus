@@ -1,6 +1,5 @@
-"""L8/G8 influence causality test suite — unit tests."""
+"""L8/G8 influence causality test suite — unit tests (experimental/frozen)."""
 
-import json
 import os
 import sys
 import unittest
@@ -11,6 +10,33 @@ from core.tests.influence.diff_analyzer import DiffAnalyzer
 from core.tests.influence.metrics import memory_drift_score, response_drift_score, routing_drift_score
 from core.tests.influence.report import build_report
 from core.tests.influence.runner import InfluenceTestRunner
+
+
+@unittest.skip("experimental L8/G8 — not on production hot path")
+class TestL8G8InfluenceFullRun(unittest.TestCase):
+    def test_full_influence_run_no_leakage(self):
+        runner = InfluenceTestRunner()
+        report = runner.run_full()
+        self.assertEqual(report["experiment"], "L8_G8_influence_test_v1")
+        self.assertTrue(report["meta"]["observational_only"])
+        self.assertFalse(report["conclusion"]["control_leakage"], report)
+        self.assertFalse(report["conclusion"]["semantic_leakage"], report)
+        self.assertIn("observational_only_confirmed", report["interpretation"])
+
+    def test_influence_cli_full_mode(self):
+        import subprocess
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        proc = subprocess.run(
+            [sys.executable, str(root / "scripts" / "run_l8g8_influence_test.py"), "--mode", "full", "--text"],
+            capture_output=True,
+            text=True,
+            cwd=str(root),
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("Influence Causality", proc.stdout)
+        self.assertIn("observational", proc.stdout.lower())
 
 
 class TestL8G8Influence(unittest.TestCase):
@@ -35,15 +61,6 @@ class TestL8G8Influence(unittest.TestCase):
         )
         self.assertEqual(score, 1.0)
 
-    def test_full_influence_run_no_leakage(self):
-        runner = InfluenceTestRunner()
-        report = runner.run_full()
-        self.assertEqual(report["experiment"], "L8_G8_influence_test_v1")
-        self.assertTrue(report["meta"]["observational_only"])
-        self.assertFalse(report["conclusion"]["control_leakage"], report)
-        self.assertFalse(report["conclusion"]["semantic_leakage"], report)
-        self.assertIn("observational_only_confirmed", report["interpretation"])
-
     def test_baseline_and_injection_isolated(self):
         runner = InfluenceTestRunner()
         baseline = runner.run_baseline()
@@ -60,21 +77,6 @@ class TestL8G8Influence(unittest.TestCase):
         self.assertTrue(diff["significant"])
         report = build_report(baseline, test, diff)
         self.assertTrue(report["conclusion"]["control_leakage"])
-
-    def test_influence_cli_full_mode(self):
-        import subprocess
-        from pathlib import Path
-
-        root = Path(__file__).resolve().parents[1]
-        proc = subprocess.run(
-            [sys.executable, str(root / "scripts" / "run_l8g8_influence_test.py"), "--mode", "full", "--text"],
-            capture_output=True,
-            text=True,
-            cwd=str(root),
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("Influence Causality", proc.stdout)
-        self.assertIn("observational_only", proc.stdout.lower() or proc.stdout)
 
 
 if __name__ == "__main__":

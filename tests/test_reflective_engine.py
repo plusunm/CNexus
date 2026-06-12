@@ -36,7 +36,7 @@ def _mock_profile():
 class TestReflectiveEngine(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
         self.emotion = EmotionEngine(self.manager)
         self.intent = IntentEngine(self.manager)
         self.engine = ReflectiveEngine(self.manager, self.emotion, self.intent)

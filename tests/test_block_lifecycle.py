@@ -65,7 +65,7 @@ class TestBlockLifecycleManager(unittest.TestCase):
 class TestMemoryManagerLifecycle(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
 
     def test_protect_block(self):
         self.manager.create_block("emotion", "情绪平稳，专注协作")
@@ -110,9 +110,11 @@ class TestRuntimeMaintainMemory(unittest.TestCase):
 
     def test_maintain_memory_runs_block_and_episodic(self):
         from brain_memory import BrainMemoryRuntime
+        from memory.runtime_guard import runtime_write_context
 
         runtime = BrainMemoryRuntime(base_dir="memory", project_root=self._tmpdir)
-        runtime.memory.create_block("working_memory", "当前任务：维护记忆生命周期")
+        with runtime_write_context():
+            runtime.memory.create_block("working_memory", "当前任务：维护记忆生命周期")
         report = runtime.maintain_memory(force=True)
         self.assertIn("blocks", report)
         self.assertIn("episodic", report)

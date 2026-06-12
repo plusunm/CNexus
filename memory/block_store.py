@@ -23,6 +23,7 @@ from memory.block import (
     PROFILE_LABELS,
     SINGLETON_LABELS,
     create_block_from_spec,
+    normalize_block_label,
 )
 
 
@@ -301,6 +302,7 @@ class MemoryBlockStore:
         initial_content: Optional[Union[str, Dict[str, Any]]] = None,
         **kwargs: Any,
     ) -> MemoryBlock:
+        label = normalize_block_label(label)
         existing = self.get_active_by_label(label)
         if existing and label in SINGLETON_LABELS:
             raise ValueError(f"Block '{label}' already exists. Use update_block() instead.")
@@ -376,6 +378,16 @@ class MemoryBlockStore:
             return block
         return None
 
+    def get_attention_state(self, user_id: Optional[str] = None) -> Optional[AttentionStateBlock]:
+        """Independent attention_state query for DynamicAttentionField sync."""
+        block = self.get_attention_snapshot()
+        if block is None:
+            return None
+        scoped_user = block.metadata.get("user_id")
+        if user_id and scoped_user not in (None, "", user_id):
+            return None
+        return block
+
     def sync_attention_from_dynamic(
         self,
         focus_scores: Dict[str, float],
@@ -388,10 +400,86 @@ class MemoryBlockStore:
             if not isinstance(created, AttentionStateBlock):
                 created = AttentionStateBlock.from_label("attention_state", "{}")
             snapshot = self.create(created)  # type: ignore[assignment]
-        snapshot.sync_from_dynamic(focus_scores, top_focus, turn)
+        field_data = {
+            "focus_scores": focus_scores,
+            "top_focus": top_focus,
+            "last_sync_turn": turn,
+            "dynamic_field": {
+                "recent_topics": [str(item).replace("_", " ") for item in top_focus[:5]],
+            },
+        }
+        snapshot.update_from_field(field_data, turn=turn)
         saved = self.save(snapshot)
         self._attention_snapshot = saved  # type: ignore[assignment]
         return saved  # type: ignore[return-value]
+
+    def add_episodic_triple(
+        self,
+        event: Dict[str, Any],
+        dialogue: Dict[str, Any],
+        decision: Dict[str, Any],
+        *,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        link: bool = True,
+    ) -> Dict[str, str]:
+        """Append episodic event + dialogue + decision entries to typed singleton blocks."""
+        from memory.block import EPISODIC_TYPE_TO_LABEL, create_episodic_block
+
+        shared_meta: Dict[str, Any] = {}
+        if user_id:
+            shared_meta["user_id"] = user_id
+        if session_id:
+            shared_meta["session_id"] = session_id
+
+        def _append(episodic_type: str, payload: Dict[str, Any]) -> EpisodicMemoryBlock:
+            label = EPISODIC_TYPE_TO_LABEL.get(episodic_type, "episodic_dialogue")
+            block = self.get_active_by_label(label, touch=False)
+            if block is None:
+                created = create_episodic_block(episodic_type, payload)
+                if shared_meta:
+                    created.metadata.update(shared_meta)
+                saved = self.create(created)
+                if not isinstance(saved, EpisodicMemoryBlock):
+                    raise TypeError(f"expected episodic block for {label}")
+                return saved
+            if not isinstance(block, EpisodicMemoryBlock):
+                raise TypeError(f"block {label} is not episodic typed")
+            if shared_meta:
+                block.metadata.update(shared_meta)
+            block.add_structured_entry(payload)
+            return self.save(block)  # type: ignore[return-value]
+
+        event_block = _append("event", event)
+        dialogue_block = _append("dialogue", dialogue)
+        decision_block = _append("decision", decision)
+
+        ids = {
+            "event_block_id": event_block.block_id,
+            "dialogue_block_id": dialogue_block.block_id,
+            "decision_block_id": decision_block.block_id,
+        }
+        if link:
+            cross_refs = [event_block.block_id, dialogue_block.block_id, decision_block.block_id]
+            edge = {
+                "event_id": event.get("event_id") or event.get("episodic_id"),
+                "dialogue_id": dialogue.get("turn_id") or dialogue.get("dialogue_id"),
+                "decision_id": decision.get("decision_id"),
+            }
+            for block in (event_block, dialogue_block, decision_block):
+                block.link_blocks([item for item in cross_refs if item != block.block_id])
+                if block is event_block:
+                    block.set_graph_edge(edge)
+                self.save(block)
+        self._append_provenance(
+            {
+                "event": "add_episodic_triple",
+                "block_ids": list(ids.values()),
+                "user_id": user_id,
+                "session_id": session_id,
+            }
+        )
+        return ids
 
     # ── Lifecycle & governance helpers ─────────────────────────────────
 

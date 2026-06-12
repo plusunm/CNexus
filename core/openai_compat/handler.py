@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.llm_client import LLMClient
@@ -77,7 +78,10 @@ async def create_chat_completion(
         raise ValueError("stream=true is not supported yet")
 
     metadata = dict(request.metadata or {})
-    use_memory = bool(metadata.get("use_memory", True))
+    cnexus_extra = metadata.pop("cnexus", None) or request.cnexus
+    if isinstance(cnexus_extra, dict):
+        metadata.update({k: v for k, v in cnexus_extra.items() if k not in metadata})
+    use_memory = bool(metadata.get("use_memory", metadata.get("enable_memory", True)))
     allow_proactive = bool(metadata.get("allow_proactive", True))
     full_cognitive_loop = bool(metadata.get("full_cognitive_loop", True))
 
@@ -100,7 +104,11 @@ async def create_chat_completion(
         "full_cognitive_loop": full_cognitive_loop,
         "model_profile": llm_profile.model,
         "provider": llm_profile.provider,
+        "user_id": metadata.get("user_id"),
+        "session_id": metadata.get("session_id"),
+        "enable_memory": use_memory,
     }
+    cnexus_provenance: Dict[str, Any] = {}
 
     assistant_output = metadata.get("assistant_output")
 
@@ -123,8 +131,44 @@ async def create_chat_completion(
                     "coherence_score": result.get("coherence_score"),
                 }
             )
+            cnexus_provenance = {
+                "trace_id": result.get("capture_id") or result.get("grounding_event_id"),
+                "blocks_used": [],
+                "user_id": metadata.get("user_id"),
+                "session_id": metadata.get("session_id"),
+                "governance": {
+                    "values_check": "revised",
+                    "cdg_intercept": bool(result.get("cdg")) and not (result.get("cdg") or {}).get(
+                        "approved", True
+                    ),
+                    "revision_note": result.get("reason"),
+                },
+                "timestamp": datetime.now(timezone.utc).replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z"),
+            }
         else:
             reply = result.get("reply") or result.get("response", "")
+            blocks_used = []
+            if result.get("emotion_state"):
+                blocks_used.append("emotion")
+            if result.get("active_intent"):
+                blocks_used.append("intent")
+            blocks_used.extend(["persona", "working_memory", "attention_state"])
+            cnexus_provenance = {
+                "trace_id": result.get("capture_id") or result.get("grounding_event_id"),
+                "blocks_used": sorted(set(blocks_used)),
+                "user_id": metadata.get("user_id"),
+                "session_id": metadata.get("session_id"),
+                "governance": {
+                    "values_check": "passed",
+                    "cdg_intercept": False,
+                    "revision_note": None,
+                },
+                "timestamp": datetime.now(timezone.utc).replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z"),
+            }
             cnexus_meta.update(
                 {
                     "ok": True,
@@ -155,6 +199,7 @@ async def create_chat_completion(
         ],
         usage=usage,
         cnexus=cnexus_meta,
+        cnexus_provenance=cnexus_provenance or None,
     )
 
 

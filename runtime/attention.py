@@ -148,6 +148,13 @@ class DynamicAttentionField:
 
     def sync_and_persist(self, memory_manager, turn: int) -> Dict[str, Any]:
         """Hybrid sync: dynamic field → AttentionStateBlock via MemoryManager."""
+        persisted = memory_manager.get_attention_state()
+        if persisted is not None:
+            snap = persisted.read_snapshot()
+            prior_scores = snap.get("focus_scores") or {}
+            if prior_scores and not self._last_focus_scores:
+                self._last_focus_scores = dict(prior_scores)
+
         focus_scores = self.focus_scores_by_label()
         top_focus = self.top_focus_labels()
         drift_score = self.detect_drift(focus_scores)

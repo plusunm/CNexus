@@ -4,7 +4,7 @@ from typing import AsyncGenerator
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from api.deps import get_runtime
+from api.deps import get_runtime, get_registry, get_llm
 
 router = APIRouter()
 
@@ -26,11 +26,9 @@ async def state_stream(websocket: WebSocket):
 
 @router.websocket("/ws/chat")
 async def chat_stream(websocket: WebSocket):
-    """Streaming chat: client sends JSON {message, model_id?, use_memory?}, receives chunks."""
+    """Streaming chat — full cognitive loop via process_interaction."""
     await websocket.accept()
     runtime = get_runtime()
-    from api.deps import get_registry, get_llm
-
     registry = get_registry()
     llm = get_llm()
 
@@ -47,23 +45,24 @@ async def chat_stream(websocket: WebSocket):
                 await websocket.send_text(json.dumps({"error": "No model configured"}))
                 continue
 
-            memory_context = runtime.recall(message) if use_memory else ""
-            system = "You are CNexus assistant. Maintain identity continuity.\n"
-            if memory_context:
-                system += f"\n--- Memory ---\n{memory_context}"
-
-            messages = [
-                {"role": "system", "content": system},
-                {"role": "user", "content": message},
-            ]
-
-            # Non-streaming fallback (unified client)
             try:
-                reply = llm.chat(profile, messages)
-                if use_memory:
-                    runtime.capture("user", message, importance=0.65)
-                    runtime.capture("assistant", reply, importance=0.55)
-                await websocket.send_text(json.dumps({"type": "done", "reply": reply}))
+                result = runtime.process_interaction(
+                    message,
+                    use_memory=use_memory,
+                    llm_client=llm,
+                    llm_profile=profile,
+                )
+                reply = result.get("reply") or result.get("response", "")
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "done",
+                            "reply": reply,
+                            "ok": result.get("ok", True),
+                            "capture_id": result.get("capture_id"),
+                        }
+                    )
+                )
             except Exception as exc:
                 await websocket.send_text(json.dumps({"type": "error", "error": str(exc)}))
     except WebSocketDisconnect:

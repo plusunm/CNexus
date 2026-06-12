@@ -12,7 +12,7 @@ from memory.manager import MemoryManager
 class TestIntentEngine(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
         self.engine = IntentEngine(self.manager)
 
     def test_update_from_interaction_creates_goal(self):
@@ -130,6 +130,7 @@ class TestIntentRuntimeIntegration(unittest.TestCase):
 
     def test_process_interaction_includes_proactive(self):
         from brain_memory import BrainMemoryRuntime
+        from memory.runtime_guard import runtime_write_context
 
         runtime = BrainMemoryRuntime(base_dir="memory", project_root=self._tmpdir)
         runtime.config_loader.config["proactive"] = {
@@ -137,15 +138,16 @@ class TestIntentRuntimeIntegration(unittest.TestCase):
             "min_motivation_threshold": 0.5,
             "inject_into_reply": True,
         }
-        runtime.intent_engine.update_from_interaction(
-            "user",
-            "我的长期目标是长期帮助用户构建更可靠的认知系统",
-            context={"goal_motivation": 0.95, "goal_priority": 0.9},
-        )
-        goals = runtime.intent_engine.get_active_goals(1)
-        if goals:
-            goals[0].alignment_score = 0.9
-            runtime.intent_engine._sync_goal_alignment(goals[0].goal_id, 0.9)
+        with runtime_write_context():
+            runtime.intent_engine.update_from_interaction(
+                "user",
+                "我的长期目标是长期帮助用户构建更可靠的认知系统",
+                context={"goal_motivation": 0.95, "goal_priority": 0.9},
+            )
+            goals = runtime.intent_engine.get_active_goals(1)
+            if goals:
+                goals[0].alignment_score = 0.9
+                runtime.intent_engine._sync_goal_alignment(goals[0].goal_id, 0.9)
 
         result = runtime.process_interaction(
             "请继续推进这个长期目标，并说明下一步具体行动建议",

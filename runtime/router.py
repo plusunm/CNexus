@@ -2,6 +2,10 @@
 
 Level 1-2: MemoryBlockStore (recall_by_priority + recall_episodic)
 Level 3-8: UnifiedStorageManager (Lance vector + Kuzu graph + legacy layers)
+
+v0.1 Block typing: scoring uses ``label_recall_priority()`` backed by
+``RECALL_PRIORITY_RANK`` in ``memory.block`` (attention_state boosted to 0.90).
+``process_interaction`` / facade unchanged — Stability-First, backward compatible.
 """
 
 from __future__ import annotations
@@ -11,7 +15,13 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
-from memory.block import BLOCK_SPECS, LABEL_PRIORITY, EpisodicMemoryBlock
+from memory.block import (
+    BLOCK_SPECS,
+    LABEL_PRIORITY,
+    RECALL_PRIORITY_RANK,
+    EpisodicMemoryBlock,
+    label_recall_priority,
+)
 from storage.manager import UnifiedStorageManager
 
 if TYPE_CHECKING:
@@ -91,6 +101,7 @@ class HierarchicalRecallEngine:
     """
 
     LABEL_PRIORITY = LABEL_PRIORITY
+    RECALL_PRIORITY_RANK = RECALL_PRIORITY_RANK
     LAYER_PRIORITY = LAYER_PRIORITY
 
     def __init__(
@@ -432,7 +443,7 @@ class HierarchicalRecallEngine:
             converted = [self._recall_result_to_legacy_dict(r, query, label_intent) for r in core_results]
             converted.sort(
                 key=lambda x: (
-                    LABEL_PRIORITY.get(x.get("_label", ""), 0.0),
+                    label_recall_priority(x.get("_label", "")),
                     x.get("_final_score", 0.0),
                 ),
                 reverse=True,
@@ -454,7 +465,7 @@ class HierarchicalRecallEngine:
 
         results.sort(
             key=lambda x: (
-                LABEL_PRIORITY.get(x.get("_label", ""), 0.0),
+                label_recall_priority(x.get("_label", "")),
                 x.get("_final_score", 0.0),
             ),
             reverse=True,
@@ -467,7 +478,7 @@ class HierarchicalRecallEngine:
         query: str,
         label_intent: Dict[str, float],
     ) -> Dict[str, Any]:
-        base = LABEL_PRIORITY.get(block.label, 0.5)
+        base = label_recall_priority(block.label)
         intent_boost = label_intent.get(block.label, 0.0)
         q_words = set(query.lower().split())
         c_words = set(block.content.lower().split())
@@ -602,7 +613,7 @@ class HierarchicalRecallEngine:
                 grouped_blocks.setdefault(row.get("_label", "unknown"), []).append(row)
             for label in sorted(
                 grouped_blocks.keys(),
-                key=lambda lb: LABEL_PRIORITY.get(lb, 0.0),
+                key=lambda lb: label_recall_priority(lb),
                 reverse=True,
             ):
                 items = grouped_blocks[label]

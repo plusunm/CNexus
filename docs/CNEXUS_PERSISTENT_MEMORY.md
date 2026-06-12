@@ -3,7 +3,8 @@
 **产品线：** CNexus — Observational Cognition Platform  
 **工作路径：** `D:\类脑记忆\CNexus — Observational Cognition Platform`  
 **最后更新：** 2026-06-12  
-**状态：** L1 Memory Infrastructure 四步完成
+**文档版本：** v0.2  
+**状态：** L1 Memory Infrastructure 四步完成 + 中期 Block 类型化 v0.1
 
 ---
 
@@ -116,10 +117,20 @@ L1 四步完成后，`MemoryBlock` + `MemoryManager` + `MemoryBlockStore` + 按 
 ### 仍缺失模块
 
 - ~~`EmotionEngine` / `IntentEngine`~~（已落地）
-- `value_alignment_history` / `dialogue_trace` Memory Block
-- `Sleep-time Compute`
-- 入站 OpenAI 兼容 API / SKILL 规范 / Desktop App
-- `coherence_score` 统一输出（闭环接线后）
+- ~~`dialogue_trace` Memory Block~~ → **中期已类型化**（`episodic_dialogue` / `DecisionTraceBlock`，见 `docs/CNexus_Block_Typing_Evolution_v0.1.md`）
+- `Sleep-time Compute`（部分：`sleep_time_compute.py` 已接 episodic block 合并）
+- 入站 OpenAI 兼容 API / SKILL 规范 / Desktop App（OpenAI + v1 REST 已落地）
+- ~~`coherence_score` 统一输出~~（`process_interaction` 已返回）
+
+### 中期 Block 类型化（v0.2 新增）
+
+| 能力 | 位置 |
+|------|------|
+| `BlockType` + label alias | `memory/block.py` |
+| `update_from_field()` | `AttentionStateBlock` |
+| Episodic 三元组 append + graph link | `MemoryBlockStore.add_episodic_triple()` |
+| Recall 优先级表 | `RECALL_PRIORITY_RANK` + `label_recall_priority()` |
+| 迁移 dry-run / group-triples | `scripts/migrate_episodic_blocks.py` |
 
 ---
 

@@ -17,7 +17,7 @@ from memory.manager import MemoryManager
 class TestValuesGovernance(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
         self.governance = ValuesGovernance(self.manager)
 
     def test_aligned_long_term_intent(self):
@@ -59,7 +59,7 @@ class TestValuesGovernance(unittest.TestCase):
 class TestIntentValueAlignment(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
         self.intent = IntentEngine(self.manager)
         self.governance = ValuesGovernance(self.manager)
 

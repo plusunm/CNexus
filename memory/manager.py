@@ -17,6 +17,7 @@ from memory.block_store import MemoryBlockStore
 from memory.filter import CaptureFilter
 from memory.governance_hook import BlockGovernanceHook, GovernanceResult
 from memory.lifecycle import BlockLifecycleManager, MemoryManagementConfig
+from memory.runtime_guard import RuntimeViolationError, assert_runtime_context
 
 if TYPE_CHECKING:
     from core.governance.safety.write_gate import MemoryWriteGate
@@ -45,9 +46,11 @@ class MemoryManager:
         *,
         storage: Optional["UnifiedStorageManager"] = None,
         write_gate: Optional["MemoryWriteGate"] = None,
+        bypass_runtime_guard: bool = False,
     ):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
+        self._bypass_runtime_guard = bypass_runtime_guard
 
         self.blocks = MemoryBlockStore(self.base_dir / "blocks")
         self.governance = BlockGovernanceHook(write_gate)
@@ -64,6 +67,10 @@ class MemoryManager:
 
     def set_write_gate(self, write_gate: "MemoryWriteGate") -> None:
         self.governance.write_gate = write_gate
+
+    def _require_runtime_write(self, operation: str) -> None:
+        if not self._bypass_runtime_guard:
+            assert_runtime_context(operation)
 
     def set_embedder(self, embedder) -> None:
         self.storage.set_embedder(embedder)
@@ -137,6 +144,7 @@ class MemoryManager:
         tags: Optional[List[str]] = None,
         embedding: Optional[List[float]] = None,
     ) -> Union[MemoryBlock, Dict[str, str]]:
+        self._require_runtime_write("create_block")
         if label not in BLOCK_SPECS:
             return {"error": f"unknown label: {label}"}
 
@@ -185,6 +193,7 @@ class MemoryManager:
         tags: Optional[List[str]] = None,
         embedding: Optional[List[float]] = None,
     ) -> Union[MemoryBlock, Dict[str, str], None]:
+        self._require_runtime_write("update_block")
         current = self.blocks.get(block_id)
         if not current:
             return None
@@ -215,6 +224,7 @@ class MemoryManager:
         return updated
 
     def delete_block(self, block_id: str) -> bool:
+        self._require_runtime_write("delete_block")
         return self.blocks.delete(block_id)
 
     def list_blocks(
@@ -323,6 +333,7 @@ class MemoryManager:
         Episodic write assumes upstream WriteGate approval (runtime.capture).
         Block write runs BlockGovernanceHook (approved / flagged / rejected).
         """
+        self._require_runtime_write("capture_interaction")
         storage_meta = dict(meta)
         storage_meta.pop("block_label", None)
         storage_meta.pop("return_detail", None)
@@ -512,6 +523,28 @@ class MemoryManager:
             return {}
         return block.read_snapshot()
 
+    def get_attention_state(self, user_id: Optional[str] = None):
+        return self.blocks.get_attention_state(user_id)
+
+    def add_episodic_triple(
+        self,
+        event: Dict,
+        dialogue: Dict,
+        decision: Dict,
+        *,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        link: bool = True,
+    ) -> Dict[str, str]:
+        return self.blocks.add_episodic_triple(
+            event,
+            dialogue,
+            decision,
+            user_id=user_id,
+            session_id=session_id,
+            link=link,
+        )
+
     # ── Episodic pass-through (interaction stream) ─────────────────────
 
     def capture_memory(
@@ -523,6 +556,7 @@ class MemoryManager:
         emotional_weight: float = 0.5,
         **meta,
     ) -> str:
+        self._require_runtime_write("capture_memory")
         return self.storage.capture_memory(
             role=role,
             content=content,

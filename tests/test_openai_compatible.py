@@ -15,7 +15,7 @@ from memory.manager import MemoryManager
 class TestSkillRegistry(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
-        self.manager = MemoryManager(self._tmpdir, storage=None)
+        self.manager = MemoryManager(self._tmpdir, storage=None, bypass_runtime_guard=True)
 
     async def test_execute_search_memory(self):
         from brain_memory import BrainMemoryRuntime

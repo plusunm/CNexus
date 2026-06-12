@@ -15,7 +15,7 @@ class TestHierarchicalRecallEngine(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
         self.storage = UnifiedStorageManager(base_dir=self._tmpdir, vector_dim=768)
-        self.manager = MemoryManager(self._tmpdir, storage=self.storage)
+        self.manager = MemoryManager(self._tmpdir, storage=self.storage, bypass_runtime_guard=True)
         self.engine = HierarchicalRecallEngine(self.storage, memory_manager=self.manager)
 
         self.manager.create_block("persona", "稳定、理性、工程优先的认知伙伴")
@@ -115,11 +115,13 @@ class TestRuntimeBlockRecall(unittest.TestCase):
 
     def test_get_core_context_blocks_priority(self):
         from brain_memory import BrainMemoryRuntime
+        from memory.runtime_guard import runtime_write_context
 
         runtime = BrainMemoryRuntime(base_dir="memory", project_root=self._tmpdir)
-        runtime.memory.create_block("emotion", "情绪平稳")
-        runtime.memory.create_block("persona", "人格稳定")
-        runtime.memory.create_block("intent", "推进架构")
+        with runtime_write_context():
+            runtime.memory.create_block("emotion", "情绪平稳")
+            runtime.memory.create_block("persona", "人格稳定")
+            runtime.memory.create_block("intent", "推进架构")
         blocks = runtime.memory.get_core_context_blocks()
         self.assertEqual(blocks[0].label, "persona")
         self.assertEqual(

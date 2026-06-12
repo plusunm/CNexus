@@ -17,10 +17,12 @@ WEB_DIR = PROJECT_ROOT / "web"
 
 from api.openai_compatible import router as openai_router  # noqa: E402
 from api.v1_endpoints import configure_v1_dependencies, router as v1_spec_router  # noqa: E402
+from api.ws_routes import configure_ws_dependencies, router as ws_router  # noqa: E402
 
 app = FastAPI(title="CNexus UI", version="1.0.0")
 app.include_router(openai_router)
 app.include_router(v1_spec_router, prefix="/v1")
+app.include_router(ws_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,6 +50,11 @@ def get_registry() -> ModelRegistry:
 
 
 configure_v1_dependencies(
+    get_runtime=get_runtime,
+    get_llm=lambda: _llm,
+    get_registry=get_registry,
+)
+configure_ws_dependencies(
     get_runtime=get_runtime,
     get_llm=lambda: _llm,
     get_registry=get_registry,
@@ -153,32 +160,26 @@ def chat(req: ChatRequest):
         raise HTTPException(400, "No available model. Please add one in Settings.")
 
     runtime = get_runtime()
-    memory_context = ""
-    if req.use_memory:
-        memory_context = runtime.recall(req.message)
-
-    system_parts = [
-        "You are a long-lived AI assistant powered by CNexus.",
-        "Maintain identity continuity, belief consistency, and narrative coherence.",
-    ]
-    if memory_context:
-        system_parts.append(f"\n--- Persistent Memory Context ---\n{memory_context}")
-
-    messages = [
-        {"role": "system", "content": "\n".join(system_parts)},
-        {"role": "user", "content": req.message},
-    ]
-
     try:
-        reply = _llm.chat(profile, messages, temperature=req.temperature)
+        result = runtime.process_interaction(
+            req.message,
+            use_memory=req.use_memory,
+            temperature=req.temperature,
+            llm_client=_llm,
+            llm_profile=profile,
+        )
     except Exception as exc:
         raise HTTPException(502, f"LLM request failed: {exc}") from exc
 
+    reply = result.get("reply") or result.get("response", "")
     capture_result = {}
     if req.use_memory:
-        user_mid = runtime.capture("user", req.message, layer="episodic", importance=0.65)
-        asst_mid = runtime.capture("assistant", reply, layer="episodic", importance=0.55)
-        capture_result = {"user_memory_id": user_mid, "assistant_memory_id": asst_mid}
+        capture_result = {
+            "pipeline": "process_interaction",
+            "ok": result.get("ok", True),
+            "capture_id": result.get("capture_id"),
+            "assistant_capture_id": result.get("assistant_capture_id"),
+        }
 
     return ChatResponse(
         reply=reply,

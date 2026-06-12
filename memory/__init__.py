@@ -4,11 +4,15 @@ from memory.block import (
     EPISODIC_LABELS,
     EPISODIC_TYPE_TO_LABEL,
     LABEL_PRIORITY,
+    RECALL_PRIORITY_RANK,
+    BlockType,
     AttentionStateBlock,
     EpisodicMemoryBlock,
     MemoryBlock,
     create_block_from_spec,
     create_episodic_block,
+    label_recall_priority,
+    normalize_block_label,
 )
 from memory.block_store import MemoryBlockStore
 from memory.filter import CaptureFilter
@@ -27,6 +31,10 @@ __all__ = [
     "MemoryBlockStore",
     "BLOCK_SPECS",
     "LABEL_PRIORITY",
+    "RECALL_PRIORITY_RANK",
+    "BlockType",
+    "label_recall_priority",
+    "normalize_block_label",
     "EPISODIC_LABELS",
     "EPISODIC_TYPE_TO_LABEL",
     "ATTENTION_LABELS",

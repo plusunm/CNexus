@@ -74,7 +74,7 @@ class TestIntegrationTypedRecall(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
         self.storage = UnifiedStorageManager(base_dir=self._tmpdir, vector_dim=8)
-        self.manager = MemoryManager(self._tmpdir, storage=self.storage)
+        self.manager = MemoryManager(self._tmpdir, storage=self.storage, bypass_runtime_guard=True)
         self.router = HierarchicalRecallEngine(self.storage, memory_manager=self.manager)
         self.manager.append_episodic_entry(
             "dialogue",
@@ -100,7 +100,7 @@ class TestEpisodicGraphLink(unittest.TestCase):
     def setUp(self):
         self._tmpdir = tempfile.mkdtemp()
         self.storage = UnifiedStorageManager(base_dir=self._tmpdir, vector_dim=8)
-        self.manager = MemoryManager(self._tmpdir, storage=self.storage)
+        self.manager = MemoryManager(self._tmpdir, storage=self.storage, bypass_runtime_guard=True)
 
     def test_link_episodic_chain(self):
         links = self.manager.link_episodic_chain(

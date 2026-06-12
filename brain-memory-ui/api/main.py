@@ -28,6 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from api.v1_endpoints import configure_v1_dependencies, router as v1_spec_router  # noqa: E402
+from api.ws_routes import configure_ws_dependencies, router as ws_v1_router  # noqa: E402
 from api.deps import get_llm, get_registry, get_runtime  # noqa: E402
 
 app = FastAPI(
@@ -53,6 +54,12 @@ configure_v1_dependencies(
     get_llm=get_llm,
     get_registry=get_registry,
 )
+configure_ws_dependencies(
+    get_runtime=get_runtime,
+    get_llm=get_llm,
+    get_registry=get_registry,
+)
+app.include_router(ws_v1_router)
 app.include_router(reflective.router)
 app.include_router(memory.router)
 app.include_router(chat.router)
