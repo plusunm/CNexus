@@ -11,8 +11,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
-from memory.block import BLOCK_SPECS, LABEL_PRIORITY
-from memory.block import EpisodicMemoryBlock
+from memory.block import BLOCK_SPECS, LABEL_PRIORITY, EpisodicMemoryBlock
 from storage.manager import UnifiedStorageManager
 
 if TYPE_CHECKING:
@@ -386,6 +385,40 @@ class HierarchicalRecallEngine:
         store = self.block_store
         if store is not None:
             store.recall_by_priority(top_k=10)
+
+    def recall_episodic_typed(
+        self,
+        query: str = "",
+        *,
+        episodic_type: Optional[str] = None,
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Typed episodic recall — label + recent entries (Mem0-style relational view)."""
+        blocks = []
+        if self.memory_manager is None:
+            return []
+        blocks = self.memory_manager.recall_episodic_typed(episodic_type, limit=limit)
+        results: List[Dict[str, Any]] = []
+        label_intent = self.detect_label_intent(query)
+        for block in blocks:
+            if not isinstance(block, EpisodicMemoryBlock):
+                continue
+            for entry in block.get_recent(limit):
+                results.append(
+                    {
+                        "memory_id": entry.get("episodic_id") or entry.get("entry_id"),
+                        "content": json.dumps(entry, ensure_ascii=False)[:500],
+                        "label": block.label,
+                        "_label": block.label,
+                        "_layer": LABEL_TO_LAYER.get(block.label, "episodic"),
+                        "_source": "episodic",
+                        "_final_score": 0.82,
+                        "episodic_type": block.episodic_type,
+                        "entry": entry,
+                    }
+                )
+        results.sort(key=lambda row: row.get("entry", {}).get("timestamp", ""), reverse=True)
+        return results[:limit]
 
     # ── legacy dict API (backward compatible) ──────────────────────────
 

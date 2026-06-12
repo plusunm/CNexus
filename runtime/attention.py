@@ -15,6 +15,7 @@ class DynamicAttentionField:
     def __init__(self):
         self.working_memory: OrderedDict[str, Dict] = OrderedDict()
         self.last_decay_time = time.time()
+        self._last_focus_scores: Dict[str, float] = {}
 
     def _compute_attention_score(self, memory: Dict, current_context: str = "") -> float:
         recency = memory.get("recency_weight", 1.0)
@@ -131,3 +132,30 @@ class DynamicAttentionField:
                 "attention_score": float(weight),
                 "last_activated": time.time(),
             }
+        self._last_focus_scores = dict(focus_scores)
+
+    def detect_drift(self, current_scores: Dict[str, float]) -> float:
+        if not self._last_focus_scores:
+            return 0.0
+        keys = set(current_scores) | set(self._last_focus_scores)
+        if not keys:
+            return 0.0
+        delta = sum(
+            abs(float(current_scores.get(key, 0.0)) - float(self._last_focus_scores.get(key, 0.0)))
+            for key in keys
+        )
+        return round(delta / len(keys), 4)
+
+    def sync_and_persist(self, memory_manager, turn: int) -> Dict[str, Any]:
+        """Hybrid sync: dynamic field → AttentionStateBlock via MemoryManager."""
+        focus_scores = self.focus_scores_by_label()
+        top_focus = self.top_focus_labels()
+        drift_score = self.detect_drift(focus_scores)
+        block = memory_manager.sync_attention_block(focus_scores, top_focus, turn)
+        self._last_focus_scores = dict(focus_scores)
+        return {
+            "drift_score": drift_score,
+            "focus_scores": focus_scores,
+            "top_focus": top_focus,
+            "block_id": getattr(block, "block_id", None),
+        }

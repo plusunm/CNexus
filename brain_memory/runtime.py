@@ -140,7 +140,11 @@ class BrainMemoryRuntime:
         self.memory_manager.set_embedder(self.embedder)
         self.memory_manager.configure_lifecycle(self._lifecycle)
         self.router.set_memory_manager(self.memory_manager)
+        self.context_engine.set_memory_manager(self.memory_manager)
         self.router.warm_up()
+        snapshot = self.memory_manager.get_attention_snapshot()
+        if snapshot:
+            self.attention.hydrate_from_snapshot(snapshot)
 
         # L3 — Emotion + Intent continuity (MemoryBlocks)
         self.emotion_engine = EmotionEngine(self.memory_manager)
@@ -268,11 +272,61 @@ class BrainMemoryRuntime:
         """CDG is the sole governance entry; stability coordinator is a subordinate probe."""
         return self.cdg
 
-    def _sync_attention_snapshot(self) -> None:
+    def _sync_attention_snapshot(self) -> Dict[str, Any]:
         self._attention_turn += 1
-        focus_scores = self.attention.focus_scores_by_label()
-        top_focus = self.attention.top_focus_labels()
-        self.memory_manager.sync_attention_block(focus_scores, top_focus, self._attention_turn)
+        sync_info = self.attention.sync_and_persist(self.memory_manager, self._attention_turn)
+        if float(sync_info.get("drift_score", 0.0)) >= 0.45:
+            self._record_attention_drift_reflection(sync_info)
+        return sync_info
+
+    def _record_attention_drift_reflection(self, sync_info: Dict[str, Any]) -> None:
+        drift = float(sync_info.get("drift_score", 0.0))
+        top_focus = sync_info.get("top_focus") or []
+        note = (
+            f"Attention drift detected (score={drift:.2f}); "
+            f"top_focus={top_focus}. Recording stability note."
+        )
+        try:
+            self.reflective_engine.reflect_on_interaction(
+                note,
+                {
+                    "query": "attention_drift",
+                    "attention_sync": sync_info,
+                    "prediction_error": drift,
+                },
+                feedback="attention_shift",
+                use_llm=False,
+            )
+        except Exception as exc:
+            logger.warning("Attention drift reflection skipped: %s", exc)
+
+    @property
+    def attention_state_block(self):
+        return self.memory_manager.get_attention_state_block()
+
+    @property
+    def episodic_event_block(self):
+        return self.memory_manager.get_episodic_block("event")
+
+    @property
+    def episodic_dialogue_block(self):
+        return self.memory_manager.get_episodic_block("dialogue")
+
+    @property
+    def episodic_decision_block(self):
+        return self.memory_manager.get_episodic_block("decision")
+
+    @property
+    def episodic_event_store(self):
+        return self.episodic_event_block
+
+    @property
+    def episodic_dialogue_store(self):
+        return self.episodic_dialogue_block
+
+    @property
+    def episodic_decision_store(self):
+        return self.episodic_decision_block
 
     def _persist_reflection_memory(self, role: str, content: str, **kwargs) -> str:
         return self.storage.capture_memory(
@@ -529,7 +583,9 @@ class BrainMemoryRuntime:
         self.working_self.sync_to_legacy(self.state)
         self._sync_attention_snapshot()
 
-        context = self.context_engine.assemble(query, recall_results)
+        context = self.context_engine.assemble(
+            query, recall_results, memory_manager=self.memory_manager
+        )
         emotion_context = self.emotion_engine.format_context_block()
         intent_context = self.intent_engine.format_context_block()
         reflective_context = self.reflective_engine.format_context_block(limit=2)

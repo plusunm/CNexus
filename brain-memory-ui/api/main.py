@@ -21,6 +21,15 @@ from api.routes import (  # noqa: E402
 from api.runtime_log import runtime_log  # noqa: E402
 from api.websocket import router as ws_router  # noqa: E402
 
+import sys
+
+PROJECT_ROOT = ROOT.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from api.v1_endpoints import configure_v1_dependencies, router as v1_spec_router  # noqa: E402
+from api.deps import get_llm, get_registry, get_runtime  # noqa: E402
+
 app = FastAPI(
     title="CNexus Runtime API",
     description="Decoupled API for CNexus UI (Web / Desktop / Mobile)",
@@ -38,6 +47,12 @@ app.add_middleware(
 )
 
 app.include_router(openai_compatible.router)
+app.include_router(v1_spec_router, prefix="/v1")
+configure_v1_dependencies(
+    get_runtime=get_runtime,
+    get_llm=get_llm,
+    get_registry=get_registry,
+)
 app.include_router(reflective.router)
 app.include_router(memory.router)
 app.include_router(chat.router)

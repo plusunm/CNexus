@@ -128,3 +128,28 @@ class UnifiedStorageManager:
 
             self._lifecycle = MemoryLifecycleManager(self, MemoryManagementConfig())
         return self._lifecycle.run_maintenance(force=force)
+
+    def link_episodic_chain(
+        self,
+        *,
+        event_id: Optional[str] = None,
+        dialogue_id: Optional[str] = None,
+        decision_id: Optional[str] = None,
+    ) -> Dict[str, str]:
+        links: Dict[str, str] = {}
+        if event_id and dialogue_id:
+            self.graph.link_memories(event_id, dialogue_id, "PART_OF")
+            links["event_dialogue"] = f"{event_id}->{dialogue_id}"
+        if dialogue_id and decision_id:
+            self.graph.link_memories(dialogue_id, decision_id, "SUPPORTS")
+            links["dialogue_decision"] = f"{dialogue_id}->{decision_id}"
+        if event_id and decision_id and "event_decision" not in links:
+            self.graph.link_memories(event_id, decision_id, "RELATES_TO")
+            links["event_decision"] = f"{event_id}->{decision_id}"
+        if links:
+            self.provenance.record_creation(
+                dialogue_id or event_id or decision_id or "episodic_chain",
+                source_type="episodic_link",
+                created_by="memory_manager",
+            )
+        return links

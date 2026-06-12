@@ -16,9 +16,11 @@ PROJECT_ROOT = Path(os.environ.get("BRAIN_MEMORY_ROOT", Path(__file__).resolve()
 WEB_DIR = PROJECT_ROOT / "web"
 
 from api.openai_compatible import router as openai_router  # noqa: E402
+from api.v1_endpoints import configure_v1_dependencies, router as v1_spec_router  # noqa: E402
 
 app = FastAPI(title="CNexus UI", version="1.0.0")
 app.include_router(openai_router)
+app.include_router(v1_spec_router, prefix="/v1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,6 +45,13 @@ def get_registry() -> ModelRegistry:
     if _registry is None:
         _registry = ModelRegistry(str(PROJECT_ROOT / "config"))
     return _registry
+
+
+configure_v1_dependencies(
+    get_runtime=get_runtime,
+    get_llm=lambda: _llm,
+    get_registry=get_registry,
+)
 
 
 class ModelCreateRequest(BaseModel):

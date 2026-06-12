@@ -50,6 +50,12 @@ EPISODIC_TYPE_TO_LABEL = {
     "decision": "episodic_decision",
 }
 
+EPISODIC_ENTRY_SCHEMAS: Dict[str, List[str]] = {
+    "event": ["event_id", "timestamp", "type", "payload", "linked_decisions"],
+    "dialogue": ["turn_id", "speaker", "content_summary", "emotion_delta", "linked_events"],
+    "decision": ["decision_id", "context_snapshot", "chosen_action", "outcome", "reflection_id"],
+}
+
 BLOCK_SPECS: Dict[str, Dict[str, Any]] = {
     "persona": {
         "description": "人格 + 叙事自我",
@@ -146,7 +152,7 @@ BLOCK_SPECS: Dict[str, Dict[str, Any]] = {
         "description": "注意力状态 (hybrid: dynamic field + persisted snapshot)",
         "limit": 600,
         "importance": 0.78,
-        "always_in_context": False,
+        "always_in_context": True,
         "category": BlockCategory.CORE,
         "governance_priority": "medium",
         "decay_rate": 0.0,
@@ -154,6 +160,13 @@ BLOCK_SPECS: Dict[str, Dict[str, Any]] = {
         "default_priority": 4,
         "hybrid": True,
         "managed_by": "DynamicAttentionField",
+        "schema": {
+            "focus_level": "float",
+            "current_targets": "list",
+            "focus_scores": "dict",
+            "decay_rate": "float",
+            "last_shift_timestamp": "iso8601",
+        },
     },
     "archival_facts": {
         "description": "长期事实与经验",
@@ -384,10 +397,11 @@ class EpisodicMemoryBlock(MemoryBlock):
         return json.dumps({"entries": entries}, ensure_ascii=False)
 
     def add_structured_entry(self, entry: Dict[str, Any]) -> None:
+        normalized = self.normalize_entry(entry)
         entries = self.parse_payload()
         entries.append(
             {
-                **entry,
+                **normalized,
                 "entry_id": str(uuid.uuid4()),
                 "timestamp": utc_now().isoformat(),
             }
@@ -398,6 +412,43 @@ class EpisodicMemoryBlock(MemoryBlock):
         self.updated_at = datetime.now()
         self.metadata["last_update_reason"] = "episodic_entry"
         self.touch()
+
+    def normalize_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        """Map loose capture payloads onto typed episodic schema fields."""
+        normalized = dict(entry)
+        if self.episodic_type == "event":
+            normalized.setdefault(
+                "event_id",
+                entry.get("entry_id") or entry.get("episodic_id") or str(uuid.uuid4()),
+            )
+            normalized.setdefault("timestamp", entry.get("timestamp") or utc_now().isoformat())
+            normalized.setdefault("type", entry.get("layer", "event"))
+            normalized.setdefault("payload", entry.get("content") or entry.get("payload"))
+        elif self.episodic_type == "dialogue":
+            normalized.setdefault("turn_id", entry.get("entry_id") or entry.get("episodic_id"))
+            normalized.setdefault("speaker", entry.get("role", "user"))
+            normalized.setdefault(
+                "content_summary",
+                str(entry.get("content") or entry.get("utterance") or "")[:500],
+            )
+        elif self.episodic_type == "decision":
+            normalized.setdefault("decision_id", entry.get("reflection_id") or entry.get("entry_id"))
+            normalized.setdefault("context_snapshot", entry.get("context_snapshot") or entry.get("context"))
+            normalized.setdefault("chosen_action", entry.get("chosen_action") or entry.get("content"))
+            normalized.setdefault("outcome", entry.get("outcome") or entry.get("reflection"))
+        return normalized
+
+    def validate_entry(self, entry: Dict[str, Any]) -> List[str]:
+        optional = {"linked_decisions", "linked_events", "emotion_delta", "embedding"}
+        required = EPISODIC_ENTRY_SCHEMAS.get(self.episodic_type, [])
+        errors: List[str] = []
+        normalized = self.normalize_entry(entry)
+        for field in required:
+            if field in optional:
+                continue
+            if normalized.get(field) in (None, "", []):
+                errors.append(f"missing {field}")
+        return errors
 
     def get_recent(self, n: int = 5) -> List[Dict[str, Any]]:
         entries = self.parse_payload()
@@ -419,24 +470,8 @@ class EpisodicMemoryBlock(MemoryBlock):
 
 
 class AttentionStateBlock(MemoryBlock):
-    def sync_from_dynamic(
-        self,
-        focus_scores: Dict[str, float],
-        top_focus: List[str],
-        turn: int,
-    ) -> None:
-        snapshot = {
-            "focus_scores": focus_scores,
-            "top_focus": top_focus,
-            "last_sync_turn": turn,
-            "total_attention_mass": sum(focus_scores.values()) or 1.0,
-        }
-        self.content = json.dumps(snapshot, ensure_ascii=False)[: self.limit]
-        self.metadata.update(snapshot)
-        self.metadata["last_update_reason"] = "attention_sync_from_dynamic_field"
-        self.version += 1
-        self.updated_at = datetime.now()
-        self.touch()
+    focus_level: float = 0.5
+    decay_rate: float = 0.0
 
     def read_snapshot(self) -> Dict[str, Any]:
         if self.metadata.get("focus_scores") is not None:
@@ -445,6 +480,10 @@ class AttentionStateBlock(MemoryBlock):
                 "top_focus": self.metadata.get("top_focus", []),
                 "last_sync_turn": self.metadata.get("last_sync_turn", 0),
                 "total_attention_mass": self.metadata.get("total_attention_mass", 1.0),
+                "focus_level": float(self.metadata.get("focus_level", self.focus_level)),
+                "current_targets": list(self.metadata.get("current_targets") or []),
+                "decay_rate": float(self.metadata.get("decay_rate", self.decay_rate)),
+                "last_shift_timestamp": self.metadata.get("last_shift_timestamp"),
             }
         if not self.content:
             return {}
@@ -452,6 +491,70 @@ class AttentionStateBlock(MemoryBlock):
             return json.loads(self.content)
         except json.JSONDecodeError:
             return {}
+
+    def validate(self) -> List[str]:
+        snap = self.read_snapshot()
+        errors: List[str] = []
+        if not snap.get("focus_scores"):
+            errors.append("missing focus_scores")
+        if snap.get("focus_level") is None:
+            errors.append("missing focus_level")
+        return errors
+
+    def to_context_string(self) -> str:
+        snap = self.read_snapshot()
+        if not snap:
+            return "【Attention State】\n• focus: balanced"
+        targets = snap.get("top_focus") or snap.get("current_targets") or []
+        level = float(snap.get("focus_level", 0.5))
+        target_text = ", ".join(str(t) for t in targets[:4]) or "none"
+        return (
+            "【Attention State】\n"
+            f"• focus_level={level:.2f}\n"
+            f"• current_targets={target_text}\n"
+            f"• last_shift={snap.get('last_shift_timestamp', 'unknown')}"
+        )
+
+    def edit_via_tool(self, updates: Dict[str, Any], *, reason: str = "tool_edit") -> None:
+        snap = self.read_snapshot()
+        focus_scores = dict(snap.get("focus_scores") or {})
+        top_focus = list(snap.get("top_focus") or [])
+        if "focus_scores" in updates and isinstance(updates["focus_scores"], dict):
+            focus_scores.update(updates["focus_scores"])
+        if "current_targets" in updates:
+            top_focus = list(updates["current_targets"])
+        turn = int(updates.get("last_sync_turn", snap.get("last_sync_turn", 0)))
+        self.sync_from_dynamic(focus_scores, top_focus, turn, reason=reason)
+        if "focus_level" in updates:
+            self.metadata["focus_level"] = float(updates["focus_level"])
+            self.focus_level = float(updates["focus_level"])
+
+    def sync_from_dynamic(
+        self,
+        focus_scores: Dict[str, float],
+        top_focus: List[str],
+        turn: int,
+        *,
+        reason: str = "attention_sync_from_dynamic_field",
+    ) -> None:
+        focus_level = max(focus_scores.values()) if focus_scores else 0.5
+        snapshot = {
+            "focus_scores": focus_scores,
+            "top_focus": top_focus,
+            "current_targets": top_focus,
+            "last_sync_turn": turn,
+            "total_attention_mass": sum(focus_scores.values()) or 1.0,
+            "focus_level": focus_level,
+            "decay_rate": self.decay_rate,
+            "last_shift_timestamp": utc_now().isoformat(),
+        }
+        self.content = json.dumps(snapshot, ensure_ascii=False)[: self.limit]
+        self.metadata.update(snapshot)
+        self.metadata["last_update_reason"] = reason
+        self.focus_level = float(focus_level)
+        self.version += 1
+        self.updated_at = datetime.now()
+        self.touch()
 
 
 class PersonaBlock(MemoryBlock):
@@ -474,15 +577,30 @@ class UserProfileBlock(MemoryBlock):
     label: str = "user_profile"
 
 
+class EpisodicEventBlock(EpisodicMemoryBlock):
+    label: str = "episodic_event"
+    episodic_type: str = "event"
+
+
+class DialogueTraceBlock(EpisodicMemoryBlock):
+    label: str = "episodic_dialogue"
+    episodic_type: str = "dialogue"
+
+
+class DecisionTraceBlock(EpisodicMemoryBlock):
+    label: str = "episodic_decision"
+    episodic_type: str = "decision"
+
+
 _BLOCK_CLASS_MAP: Dict[str, Type[MemoryBlock]] = {
     "persona": PersonaBlock,
     "emotion": EmotionBlock,
     "intent": IntentBlock,
     "working_memory": WorkingMemoryBlock,
     "user_profile": UserProfileBlock,
-    "episodic_event": EpisodicMemoryBlock,
-    "episodic_dialogue": EpisodicMemoryBlock,
-    "episodic_decision": EpisodicMemoryBlock,
+    "episodic_event": EpisodicEventBlock,
+    "episodic_dialogue": DialogueTraceBlock,
+    "episodic_decision": DecisionTraceBlock,
     "attention_state": AttentionStateBlock,
 }
 
@@ -509,6 +627,9 @@ def create_episodic_block(
         category=BlockCategory.EPISODIC.value,
         decay_rate=float(spec.get("decay_rate", 0.03)),
     )
+    typed_cls = _resolve_block_class(label)
+    if typed_cls is not EpisodicMemoryBlock:
+        block = typed_cls(**block.model_dump())
     if initial_payload:
         block.add_structured_entry(initial_payload)
     return block

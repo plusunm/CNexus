@@ -21,10 +21,30 @@ Capture → CaptureFilter → WriteGate → MemoryManager.capture_interaction()
               └─ MemoryBlock (persona/intent/...) → JSON + Governance Hook
 
 Recall  → HierarchicalRecallEngine (label priority + episodic fallback)
+        → AttentionStateBlock hybrid snapshot + typed episodic triplets
         → Attention → ContextAssembly → LLM Context
 
 Maintain → BlockLifecycleManager (decay/protect/compress) + episodic lifecycle
 Governance → DriftDetector → IdentityAnchor → StabilityMetrics
+
+## Block 类型化演进（v0.1）
+
+| Block | 类型 | 策略 |
+|-------|------|------|
+| `attention_state` | `AttentionStateBlock` | Hybrid：DynamicAttentionField 实时场 + Block 持久 snapshot |
+| `episodic_event` | `EpisodicEventBlock` | 显式 event schema + Lance/Kuzu 双写 |
+| `episodic_dialogue` | `DialogueTraceBlock` | 对话轨迹，链接 event/decision |
+| `episodic_decision` | `DecisionTraceBlock` | ReflectiveEngine 反思后自动写入 |
+
+迁移：`python scripts/migrate_episodic_blocks.py --dry-run`
+
+```mermaid
+flowchart LR
+    DAF[DynamicAttentionField] -->|sync| ASB[AttentionStateBlock]
+    CAP[capture_interaction] --> EV[EpisodicEvent/Dialogue/Decision Blocks]
+    EV --> Kuzu[Kuzu PART_OF/SUPPORTS links]
+    REF[ReflectiveEngine] --> DEC[DecisionTraceBlock]
+```
 ```
 
 ## 设计原则

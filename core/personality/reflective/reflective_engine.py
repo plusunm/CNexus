@@ -169,7 +169,29 @@ class ReflectiveEngine:
                 source="reflective_engine",
             )
         self._update_narrative_self(record, context)
+        self._write_decision_trace(record, context)
         return record
+
+    def _write_decision_trace(
+        self,
+        record: InteractionReflectionRecord,
+        context: Dict[str, Any],
+    ) -> None:
+        entry = {
+            "decision_id": record.reflection_id,
+            "context_snapshot": str(context)[:500],
+            "chosen_action": record.actor_output[:300],
+            "outcome": record.reflection[:300],
+            "reflection_id": record.reflection_id,
+        }
+        block = self.memory.append_episodic_entry(
+            "decision",
+            entry,
+            episodic_id=record.reflection_id,
+        )
+        dialogue_id = context.get("capture_id") or context.get("episodic_id")
+        if dialogue_id:
+            self.memory.link_episodic_chain(dialogue_id=str(dialogue_id), decision_id=record.reflection_id)
 
     def _generate_llm_reflection(
         self,

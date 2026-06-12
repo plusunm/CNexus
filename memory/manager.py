@@ -406,6 +406,8 @@ class MemoryManager:
                 "episodic_type": episodic_type,
             }
         )
+        if episodic_type == "dialogue" and episodic_id:
+            self.link_episodic_chain(dialogue_id=episodic_id)
         if meta.get("graph_node_id"):
             block.graph_node_id = str(meta["graph_node_id"])
         if meta.get("embedding_ref"):
@@ -413,6 +415,57 @@ class MemoryManager:
         else:
             block.embedding_ref = episodic_id
         return self.blocks.save(block)
+
+    def link_episodic_chain(
+        self,
+        *,
+        event_id: Optional[str] = None,
+        dialogue_id: Optional[str] = None,
+        decision_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Link episodic vector ids in Kuzu + annotate typed block entries."""
+        links = self.storage.link_episodic_chain(
+            event_id=event_id,
+            dialogue_id=dialogue_id,
+            decision_id=decision_id,
+        )
+        for episodic_type, episodic_id in (
+            ("event", event_id),
+            ("dialogue", dialogue_id),
+            ("decision", decision_id),
+        ):
+            if not episodic_id:
+                continue
+            block = self.get_active_block(
+                EPISODIC_TYPE_TO_LABEL.get(episodic_type, "episodic_dialogue"),
+                touch=False,
+            )
+            if isinstance(block, EpisodicMemoryBlock):
+                block.metadata["graph_links"] = links
+                self.blocks.save(block)
+        return links
+
+    def get_attention_state_block(self):
+        from memory.block import AttentionStateBlock
+
+        block = self.get_active_block("attention_state", touch=False)
+        return block if isinstance(block, AttentionStateBlock) else block
+
+    def get_episodic_block(self, episodic_type: str):
+        label = EPISODIC_TYPE_TO_LABEL.get(episodic_type, "episodic_dialogue")
+        return self.get_active_block(label, touch=False)
+
+    def recall_episodic_typed(
+        self,
+        episodic_type: Optional[str] = None,
+        *,
+        limit: int = 5,
+    ) -> List[MemoryBlock]:
+        if episodic_type:
+            block = self.get_episodic_block(episodic_type)
+            return [block] if block else []
+        blocks = self.blocks.list_episodic_blocks()
+        return blocks[:limit]
 
     @staticmethod
     def _infer_episodic_type(layer: str, role: str) -> str:

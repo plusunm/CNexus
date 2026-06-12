@@ -67,6 +67,7 @@ class SleepTimeCompute:
                 force=force
             )
             report.archival_compressed = self._compress_archival_blocks()
+            episodic_compressed = self._consolidate_typed_episodic_blocks(force=force)
             if self.reflective:
                 report.batch_reflections_generated = self._batch_reflect_on_past()
 
@@ -74,6 +75,7 @@ class SleepTimeCompute:
                 report.reflective_compressed
                 + report.value_alignment_compressed
                 + report.archival_compressed
+                + episodic_compressed
             )
         except Exception as exc:
             report.errors.append(str(exc))
@@ -223,6 +225,24 @@ class SleepTimeCompute:
                 continue
 
         return generated
+
+    def _consolidate_typed_episodic_blocks(self, *, force: bool = False) -> int:
+        """Trim old typed episodic entries during sleep-time (Letta archival style)."""
+        del force
+        from memory.block import EPISODIC_TYPE_TO_LABEL, EpisodicMemoryBlock
+
+        consolidated = 0
+        for label in EPISODIC_TYPE_TO_LABEL.values():
+            block = self.memory.get_active_block(label, touch=False)
+            if not isinstance(block, EpisodicMemoryBlock):
+                continue
+            entries = block.parse_payload()
+            if len(entries) <= 120:
+                continue
+            block.content = block.serialize_payload(entries[-120:])[: block.limit]
+            self.memory.blocks.save(block)
+            consolidated += 1
+        return consolidated
 
     @staticmethod
     def _summarize_reflection(content: Dict[str, Any]) -> str:
