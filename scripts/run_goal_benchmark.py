@@ -15,6 +15,7 @@ OUT = ROOT / "docs" / "benchmarks" / "GOAL_BASELINE.md"
 
 def main() -> int:
     tests = [
+        "tests/test_goal_synthesis.py",
         "tests/test_goal_layer.py",
         "tests/benchmark/test_goal_influence.py",
         "tests/test_intent_engine.py",

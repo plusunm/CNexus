@@ -126,7 +126,13 @@ class IntentEngine:
                     goal.description = goal.description[:48]
         return working
 
-    def _persist_state(self, state: IntentState, *, importance: float = 0.7) -> IntentState:
+    def _persist_state(
+        self,
+        state: IntentState,
+        *,
+        importance: float = 0.7,
+        source: str = "intent_engine",
+    ) -> IntentState:
         state = self._compact_state(state)
         block = self._get_or_create_block()
         payload = self._dump_state(state)
@@ -141,10 +147,53 @@ class IntentEngine:
         result = self.memory.update_block(
             block.block_id,
             self._dump_state(state),
-            source="intent_engine",
+            source=source,
         )
         if isinstance(result, dict) and result.get("denied"):
             return self._load_state(block.content)
+        return state
+
+    def load_state(self, content: str) -> IntentState:
+        return self._load_state(content)
+
+    def persist_state(
+        self,
+        state: IntentState,
+        *,
+        importance: float = 0.7,
+        source: str = "intent_engine",
+    ) -> IntentState:
+        return self._persist_state(state, importance=importance, source=source)
+
+    def apply_signal_to_state(
+        self,
+        state: IntentState,
+        role: str,
+        content: str,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+        importance: float = 0.6,
+        alignment_score: Optional[float] = None,
+    ) -> IntentState:
+        """Apply one signal onto in-memory IntentState without persisting."""
+        score = alignment_score if alignment_score is not None else self._estimate_alignment_score()
+        if context and context.get("goal_motivation") is not None:
+            motivation_floor = float(context["goal_motivation"])
+        else:
+            motivation_floor = None
+        if context and context.get("goal_priority") is not None:
+            priority_floor = float(context["goal_priority"])
+        else:
+            priority_floor = None
+
+        for goal in self._extract_goals(role, content, context, score):
+            if motivation_floor is not None:
+                goal.motivation = max(goal.motivation, motivation_floor)
+            if priority_floor is not None:
+                goal.priority = max(goal.priority, priority_floor)
+            self._add_or_update_goal(state, goal, importance)
+
+        state.last_updated = datetime.now()
         return state
 
     # ── core update ────────────────────────────────────────────────────
@@ -162,17 +211,14 @@ class IntentEngine:
         state = self._load_state(block.content)
 
         persona_alignment = self._estimate_alignment_score()
-        new_goals = self._extract_goals(role, content, context, persona_alignment)
-        if context and context.get("goal_motivation") is not None:
-            motivation_floor = float(context["goal_motivation"])
-            for goal in new_goals:
-                goal.motivation = max(goal.motivation, motivation_floor)
-        if context and context.get("goal_priority") is not None:
-            priority_floor = float(context["goal_priority"])
-            for goal in new_goals:
-                goal.priority = max(goal.priority, priority_floor)
-        for goal in new_goals:
-            self._add_or_update_goal(state, goal, importance)
+        state = self.apply_signal_to_state(
+            state,
+            role,
+            content,
+            context=context,
+            importance=importance,
+            alignment_score=persona_alignment,
+        )
 
         active = [g for g in state.active_goals if g.status == GoalStatus.ACTIVE]
         if active:
@@ -180,7 +226,6 @@ class IntentEngine:
             state.current_focus = top.goal_id
             state.motivation_baseline = min(1.0, state.motivation_baseline + 0.05 * importance)
 
-        state.last_updated = datetime.now()
         return self._persist_state(state, importance=importance)
 
     def _estimate_alignment_score(self) -> float:

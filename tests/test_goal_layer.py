@@ -80,9 +80,9 @@ class TestGoalGovernanceObserve(unittest.TestCase):
 
         self.assertIn("goal_layer", report)
         goal_layer = report["goal_layer"]
-        self.assertGreaterEqual(goal_layer["active_goal_count"], 1)
-        self.assertGreater(goal_layer["goal_influence_weight"], 0.0)
-        self.assertIsNotNone(goal_layer.get("top_goal"))
+        self.assertGreaterEqual(goal_layer.get("active_goal_count", 0), 1)
+        self.assertTrue(goal_layer.get("reconciled") or goal_layer.get("projected"))
+        self.assertIn("synthesis_generation", goal_layer)
 
 
 class TestBeliefMetaBoundary(unittest.TestCase):

@@ -1,4 +1,4 @@
-"""GoalManager — single mount point for capture / governance goal verification."""
+"""GoalManager — synthesis-backed capture mount and governance hooks."""
 
 from __future__ import annotations
 
@@ -6,27 +6,54 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from core.governance.values_governance import ValuesGovernance
+    from core.personality.belief.belief_engine import BeliefEngine
     from core.personality.intent_engine import Goal, IntentEngine, IntentState
     from core.personality.narrative.narrative_builder import NarrativeBuilder
+    from runtime.cognitive_state import PersistentCognitiveState
 
+from core.goal.synthesis import GoalSynthesizer
 from core.personality.intent_engine import GoalStatus
 
 CAPTURE_INTENT_LAYERS = frozenset({"goal", "identity", "episodic", "working"})
 
 
 class GoalManager:
-    """Thin facade over IntentEngine for capture hot path and governance observation."""
+    """Facade: ingest → synthesize → project via GoalSynthesizer."""
 
     def __init__(
         self,
         intent_engine: "IntentEngine",
         *,
         narrative_builder: Optional["NarrativeBuilder"] = None,
+        working_self: Optional["PersistentCognitiveState"] = None,
+        belief_engine: Optional["BeliefEngine"] = None,
         values_governance: Optional["ValuesGovernance"] = None,
     ):
         self.intent = intent_engine
-        self.narrative = narrative_builder
-        self.values = values_governance
+        self.synthesizer = GoalSynthesizer(
+            intent_engine,
+            narrative_builder=narrative_builder,
+            working_self=working_self,
+            belief_engine=belief_engine,
+            values_governance=values_governance,
+        )
+
+    def bind_runtime(
+        self,
+        *,
+        working_self: Optional["PersistentCognitiveState"] = None,
+        belief_engine: Optional["BeliefEngine"] = None,
+        values_governance: Optional["ValuesGovernance"] = None,
+        narrative_builder: Optional["NarrativeBuilder"] = None,
+    ) -> None:
+        if working_self is not None:
+            self.synthesizer.working_self = working_self
+        if belief_engine is not None:
+            self.synthesizer.belief_engine = belief_engine
+        if values_governance is not None:
+            self.synthesizer.values = values_governance
+        if narrative_builder is not None:
+            self.synthesizer.narrative = narrative_builder
 
     def mount_on_capture(
         self,
@@ -38,29 +65,51 @@ class GoalManager:
         context: Optional[Dict[str, Any]] = None,
         update_intent: bool = True,
     ) -> Optional["IntentState"]:
-        """Mount goal extraction on capture path — IntentEngine owns intent block JSON."""
         if not update_intent or layer not in CAPTURE_INTENT_LAYERS:
             return None
 
-        state = self.intent.update_from_interaction(
-            role,
-            content,
-            context=context,
-            importance=importance,
+        self.synthesizer.ingest_capture(
+            role, content, layer, importance, context=context
         )
-        if layer == "goal":
-            self._sync_narrative_goal(state)
-        return state
+        self.synthesizer.synthesize()
+        self.synthesizer.project()
+        return self._intent_state_from_canonical()
+
+    def ingest_reflection(
+        self,
+        *,
+        inner_thought: str = "",
+        query: str = "",
+        goal_id: Optional[str] = None,
+        alignment_score: float = 0.75,
+    ) -> None:
+        self.synthesizer.ingest_reflection(
+            inner_thought=inner_thought,
+            query=query,
+            goal_id=goal_id,
+            alignment_score=alignment_score,
+        )
+        self.synthesizer.synthesize()
+        self.synthesizer.project()
+
+    def reconcile_governance(
+        self,
+        values_governance: Optional["ValuesGovernance"] = None,
+    ) -> Dict[str, Any]:
+        if values_governance is not None:
+            self.synthesizer.values = values_governance
+        reconcile_report = self.synthesizer.reconcile()
+        observe = self.observe_governance(values_governance)
+        return {**observe, **reconcile_report}
 
     def active_goals(self, top_k: int = 3) -> List["Goal"]:
-        return self.intent.get_active_goals(top_k=top_k)
+        return self.synthesizer.active_canonical_goals(top_k=top_k)
 
     def current_focus(self) -> Optional[str]:
-        summary = self.intent.get_state_summary()
-        return summary.get("current_focus")
+        return self.synthesizer.state.current_focus_id
 
     def motivation_boost(self) -> float:
-        return self.intent.get_motivation_boost()
+        return self.synthesizer.motivation_boost()
 
     def format_context_block(self) -> str:
         return self.intent.format_context_block()
@@ -69,9 +118,8 @@ class GoalManager:
         self,
         values_governance: Optional["ValuesGovernance"] = None,
     ) -> Dict[str, Any]:
-        """Read-only goal snapshot for governance cycle verification."""
         goals = self.active_goals(top_k=3)
-        vg = values_governance or self.values
+        vg = values_governance or self.synthesizer.values
         alignment = None
         if vg is not None:
             record = self.intent.check_value_alignment(vg)
@@ -79,6 +127,7 @@ class GoalManager:
                 alignment = record.model_dump(mode="json")
 
         top = goals[0] if goals else None
+        synth = self.synthesizer.state
         return {
             "active_goal_count": len(goals),
             "current_focus": self.current_focus(),
@@ -88,20 +137,16 @@ class GoalManager:
             "goal_influence_weight": (
                 round(top.priority * top.motivation * top.alignment_score, 4) if top else 0.0
             ),
+            "synthesis_generation": synth.synthesis_generation,
+            "conflicts": [c.model_dump(mode="json") for c in synth.conflicts],
+            "belief_links": len(synth.belief_links),
         }
 
-    def _sync_narrative_goal(self, state: "IntentState") -> None:
-        if self.narrative is None:
-            return
-        active = [g for g in state.active_goals if g.status == GoalStatus.ACTIVE]
-        if not active:
-            return
-        top = max(active, key=lambda g: g.priority * g.motivation * g.alignment_score)
-        desc = top.description[:120].strip()
-        if not desc:
-            return
-        goals = self.narrative.narrative.long_term_goals
-        if desc not in goals:
-            goals.append(desc)
-        if len(goals) > 8:
-            self.narrative.narrative.long_term_goals = goals[-8:]
+    def _intent_state_from_canonical(self) -> "IntentState":
+        from core.personality.intent_engine import IntentState
+
+        synth = self.synthesizer.state
+        return IntentState(
+            active_goals=[g for g in synth.canonical_goals if g.status == GoalStatus.ACTIVE],
+            current_focus=synth.current_focus_id,
+        )

@@ -189,7 +189,7 @@ class BrainMemoryRuntime:
         self.goal_manager = GoalManager(
             self.intent_engine,
             narrative_builder=self.narrative,
-            values_governance=None,
+            working_self=self.working_self,
         )
         self._llm_client = LLMClient()
         self.reflective_engine = ReflectiveEngine(
@@ -205,7 +205,10 @@ class BrainMemoryRuntime:
             self.memory_manager,
             persona_values_provider=self._get_persona_core_values,
         )
-        self.goal_manager.values = self.values_governance
+        self.goal_manager.bind_runtime(
+            belief_engine=self.belief_engine,
+            values_governance=self.values_governance,
+        )
         self.sleep_time_compute = SleepTimeCompute(
             self.memory_manager,
             reflective_engine=self.reflective_engine,
@@ -744,6 +747,13 @@ class BrainMemoryRuntime:
             )
             if reflection_triggered:
                 self._last_reflection_turn = self._attention_turn
+            focus_id = self.goal_manager.current_focus()
+            self.goal_manager.ingest_reflection(
+                inner_thought=str(meta_reflection_payload.get("inner_thought") or ""),
+                query=text,
+                goal_id=focus_id,
+                alignment_score=float(error) if error < 1.0 else 0.75,
+            )
 
         return integration, meta_reflection_payload, reflection_triggered
 
@@ -1305,7 +1315,7 @@ class BrainMemoryRuntime:
             result = self.stability.run_governance_cycle()
             result["cdg"] = cdg_snapshot
             result["cdg_trajectory"] = self.cdg.trajectory_report()
-            result["goal_layer"] = self.goal_manager.observe_governance(self.values_governance)
+            result["goal_layer"] = self.goal_manager.reconcile_governance(self.values_governance)
             if self.config.get("enable_metabolic", True):
                 result["memory_maintenance"] = self.maintain_memory()
         return result

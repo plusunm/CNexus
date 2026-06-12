@@ -113,8 +113,8 @@ class RecallPipeline:
         query: str,
     ) -> List[Dict[str, Any]]:
         """Boost recall items aligned with the top active goal."""
-        boost = self.runtime.intent_engine.get_motivation_boost()
-        goals = self.runtime.intent_engine.get_active_goals(top_k=1)
+        boost = self.runtime.goal_manager.motivation_boost()
+        goals = self.runtime.goal_manager.active_goals(top_k=1)
         if boost <= 0 or not goals:
             return recall_results
 
