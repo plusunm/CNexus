@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, model_validator
 
 from brain_memory import BrainMemoryRuntime
+
+from api.health import deep_health_payload, shallow_health_payload
 
 RuntimeProvider = Callable[[], BrainMemoryRuntime]
 LLMProvider = Callable[[], Any]
@@ -21,6 +24,7 @@ _llm_provider: Optional[LLMProvider] = None
 _registry_provider: Optional[RegistryProvider] = None
 
 router = APIRouter(tags=["v1-spec"])
+logger = logging.getLogger(__name__)
 
 
 def configure_v1_dependencies(
@@ -468,12 +472,32 @@ async def v1_status(
         raise HTTPException(status_code=500, detail={"error": str(exc)}) from exc
 
 
-@router.post("/capture", response_model=CaptureResponse)
+@router.get("/health")
+async def v1_health():
+    """GET /v1/health — shallow liveness."""
+    return shallow_health_payload()
+
+
+@router.get("/health/ready")
+async def v1_health_ready(runtime: BrainMemoryRuntime = Depends(get_runtime)):
+    """GET /v1/health/ready — storage + optional Ollama probes."""
+    payload = deep_health_payload(runtime)
+    if payload["status"] == "not_ready":
+        raise HTTPException(status_code=503, detail=payload)
+    return payload
+
+
+@router.post("/capture", response_model=CaptureResponse, deprecated=True)
 async def v1_capture(
     req: CaptureRequest,
+    response: Response,
     runtime: BrainMemoryRuntime = Depends(get_runtime),
 ):
-    """POST /v1/capture — metadata-aware capture entry."""
+    """POST /v1/capture — deprecated; prefer POST /v1/interact for full loop."""
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = '</v1/interact>; rel="successor-version"'
+    response.headers["Warning"] = '299 - "Use POST /v1/interact for governed full loop"'
+    logger.warning("deprecated endpoint POST /v1/capture invoked; use POST /v1/interact")
     meta = dict(req.metadata or {})
     meta.update({"user_id": req.user_id, "session_id": meta.get("session_id")})
     result = runtime.capture(

@@ -15,6 +15,7 @@ from core.model_registry import ModelProfile, ModelRegistry
 PROJECT_ROOT = Path(os.environ.get("BRAIN_MEMORY_ROOT", Path(__file__).resolve().parent.parent))
 WEB_DIR = PROJECT_ROOT / "web"
 
+from api.health import deep_health_payload, shallow_health_payload
 from api.openai_compatible import router as openai_router  # noqa: E402
 from api.v1_endpoints import configure_v1_dependencies, router as v1_spec_router  # noqa: E402
 from api.ws_routes import configure_ws_dependencies, router as ws_router  # noqa: E402
@@ -102,7 +103,15 @@ def index():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "1.0.0-g1"}
+    return shallow_health_payload()
+
+
+@app.get("/api/health/ready")
+def health_ready():
+    payload = deep_health_payload(get_runtime())
+    if payload["status"] == "not_ready":
+        raise HTTPException(status_code=503, detail=payload)
+    return payload
 
 
 @app.get("/api/models")

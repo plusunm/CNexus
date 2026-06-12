@@ -657,6 +657,82 @@ class BrainMemoryRuntime:
                 f"核心信念：{content}", confidence=confidence
             )
 
+    def _predictive_checkpoint(self) -> Dict[str, Any]:
+        return {
+            "prediction_error": self.predictive.prediction_error,
+            "surprise_level": self.predictive.surprise_level,
+            "correction_count": self.predictive.correction_count,
+            "self_expectations": dict(self.self_model.self_expectations),
+            "working_prediction_error": self.working_self.prediction_error,
+        }
+
+    def _restore_predictive_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        self.predictive.prediction_error = float(checkpoint.get("prediction_error", 0.0))
+        self.predictive.surprise_level = float(checkpoint.get("surprise_level", 0.0))
+        self.predictive.correction_count = int(checkpoint.get("correction_count", 0))
+        self.working_self.prediction_error = float(
+            checkpoint.get("working_prediction_error", 0.0)
+        )
+        expectations = checkpoint.get("self_expectations")
+        if isinstance(expectations, dict):
+            self.self_model.self_expectations.clear()
+            self.self_model.self_expectations.update(expectations)
+
+    def _apply_post_cdg_interaction_updates(
+        self,
+        *,
+        text: str,
+        response: str,
+        reflection: str,
+        error: float,
+        context: str,
+    ) -> tuple[Any, Dict[str, Any], bool]:
+        integration = self.self_model_store.integrate(
+            text,
+            response,
+            reflection=reflection,
+            dna=self.dna_engine.dna,
+            prediction_error=error,
+            relation_shift=self.working_self.relationship_tone - 0.7,
+        )
+
+        self.narrative.update_from_interaction(
+            text, response, reflection=reflection, importance=0.65
+        )
+        self._sync_narrative_from_self_model()
+        self.belief_engine._persist_narrative_block()
+        self._sync_beliefs_from_self_model()
+
+        meta_reflection_payload: Dict[str, Any] = {}
+        reflection_triggered = False
+        cooldown = int(self.config.get("reflection_cooldown_turns", 0))
+        turns_since_reflection = self._attention_turn - self._last_reflection_turn
+        use_refl_llm = bool(self.config.get("reflective_use_llm", True))
+        if cooldown > 0 and turns_since_reflection < cooldown:
+            use_refl_llm = False
+
+        if use_refl_llm or cooldown == 0:
+            meta_reflection = self.reflective_engine.reflect_on_interaction(
+                response,
+                {
+                    "query": text,
+                    "user_input": text,
+                    "prediction_error": error,
+                    "context_preview": context[:200] if context else "",
+                },
+                feedback=None,
+                use_llm=use_refl_llm,
+            )
+            meta_reflection_payload = meta_reflection.model_dump(mode="json")
+            reflection_triggered = error > 0.4 or bool(
+                meta_reflection_payload.get("inner_thought")
+                or meta_reflection_payload.get("scene")
+            )
+            if reflection_triggered:
+                self._last_reflection_turn = self._attention_turn
+
+        return integration, meta_reflection_payload, reflection_triggered
+
     def _run_cdg_cycle(
         self,
         pre_state: Dict[str, Any],
@@ -1020,54 +1096,12 @@ class BrainMemoryRuntime:
                 meta=meta,
             )
 
+        pred_ckpt = self._predictive_checkpoint()
         error = self.predictive.predict_and_update(
             text, response, self.working_self, self.self_model
         )
         reflection = f"本次交互预测误差 {error:.2f}，"
         reflection += "触发自我校正。" if error > 0.4 else "维持稳定性身份。"
-
-        integration = self.self_model_store.integrate(
-            text,
-            response,
-            reflection=reflection,
-            dna=self.dna_engine.dna,
-            prediction_error=error,
-            relation_shift=self.working_self.relationship_tone - 0.7,
-        )
-
-        self.narrative.update_from_interaction(
-            text, response, reflection=reflection, importance=0.65
-        )
-        self._sync_narrative_from_self_model()
-        self.belief_engine._persist_narrative_block()
-        self._sync_beliefs_from_self_model()
-
-        meta_reflection_payload: Dict[str, Any] = {}
-        reflection_triggered = False
-        cooldown = int(self.config.get("reflection_cooldown_turns", 0))
-        turns_since_reflection = self._attention_turn - self._last_reflection_turn
-        use_refl_llm = bool(self.config.get("reflective_use_llm", True))
-        if cooldown > 0 and turns_since_reflection < cooldown:
-            use_refl_llm = False
-
-        if use_refl_llm or cooldown == 0:
-            meta_reflection = self.reflective_engine.reflect_on_interaction(
-                response,
-                {
-                    "query": text,
-                    "user_input": text,
-                    "prediction_error": error,
-                    "context_preview": context[:200] if context else "",
-                },
-                feedback=None,
-                use_llm=use_refl_llm,
-            )
-            meta_reflection_payload = meta_reflection.model_dump(mode="json")
-            reflection_triggered = error > 0.4 or bool(
-                meta_reflection_payload.get("inner_thought") or meta_reflection_payload.get("scene")
-            )
-            if reflection_triggered:
-                self._last_reflection_turn = self._attention_turn
 
         value_alignment = self.intent_engine.check_value_alignment(self.values_governance)
         value_alignment_payload = (
@@ -1096,11 +1130,6 @@ class BrainMemoryRuntime:
         if values_decision.action == "REWRITE" and values_decision.safe_text:
             response = values_decision.safe_text
 
-        self.working_self.update_prediction_error()
-        self.working_self.add_reflection(reflection)
-        self.deliberation.regulate_homeostasis(self.working_self)
-        self.working_self.sync_to_legacy(self.state)
-
         capture_ids = [capture_id] if isinstance(capture_id, str) and not capture_id.startswith("denied") else []
         proposed_state = snapshot_cdg_state(
             self,
@@ -1111,6 +1140,7 @@ class BrainMemoryRuntime:
         )
         cdg_result = self._run_cdg_cycle(pre_state, proposed_state, phase="interaction")
         if not cdg_result.get("approved", True):
+            self._restore_predictive_checkpoint(pred_ckpt)
             safe_response = (
                 cdg_result.get("safe_response")
                 or self.governance_pipeline.safe_fallback(
@@ -1133,12 +1163,27 @@ class BrainMemoryRuntime:
                     "rcs": cdg_result.get("rcs"),
                     "working_self": self.working_self.to_dict(),
                     "self_model": self.self_model.to_dict(),
-                    "reflection_triggered": reflection_triggered,
+                    "reflection_triggered": False,
                     **self._interaction_api_fields(cdg_result),
                 },
                 user_id=user_id,
                 meta=meta,
             )
+
+        integration, meta_reflection_payload, reflection_triggered = (
+            self._apply_post_cdg_interaction_updates(
+                text=text,
+                response=response,
+                reflection=reflection,
+                error=error,
+                context=context,
+            )
+        )
+
+        self.working_self.update_prediction_error()
+        self.working_self.add_reflection(reflection)
+        self.deliberation.regulate_homeostasis(self.working_self)
+        self.working_self.sync_to_legacy(self.state)
 
         post_snap = snapshot_cdg_state(
             self,

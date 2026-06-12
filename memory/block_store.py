@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from memory.atomic_io import atomic_write_json
 from memory.block import (
     ARCHIVAL_LABELS,
     BLOCK_SPECS,
@@ -61,8 +62,7 @@ class MemoryBlockStore:
             return json.load(fh)
 
     def _save_index(self) -> None:
-        with open(self.index_path, "w", encoding="utf-8") as fh:
-            json.dump(self._index, fh, ensure_ascii=False, indent=2)
+        atomic_write_json(self.index_path, self._index)
 
     def _block_path(self, block_id: str) -> Path:
         return self.blocks_dir / f"{block_id}.json"
@@ -73,9 +73,13 @@ class MemoryBlockStore:
         return block_versions / f"v{version}.json"
 
     def _write_block(self, block: MemoryBlock) -> None:
-        with open(self._block_path(block.block_id), "w", encoding="utf-8") as fh:
-            json.dump(block.model_dump_for_storage(), fh, ensure_ascii=False, indent=2)
+        atomic_write_json(self._block_path(block.block_id), block.model_dump_for_storage())
 
+    def _write_version(self, block: MemoryBlock) -> None:
+        atomic_write_json(
+            self._version_path(block.block_id, block.version),
+            block.model_dump_for_storage(),
+        )
     def _read_block(self, block_id: str) -> Optional[MemoryBlock]:
         path = self._block_path(block_id)
         if not path.exists():
@@ -210,8 +214,7 @@ class MemoryBlockStore:
             return None
 
         snapshot_path = self._version_path(block_id, current.version)
-        with open(snapshot_path, "w", encoding="utf-8") as fh:
-            json.dump(current.model_dump_for_storage(), fh, ensure_ascii=False, indent=2)
+        atomic_write_json(snapshot_path, current.model_dump_for_storage())
 
         current.content = content[: current.limit]
         current.version += 1
@@ -364,7 +367,14 @@ class MemoryBlockStore:
             for block in self.list_episodic_blocks():
                 if isinstance(block, EpisodicMemoryBlock):
                     results.append(block)
-        results.sort(key=lambda b: b.timestamp, reverse=True)
+        results.sort(
+            key=lambda b: (
+                b.timestamp.replace(tzinfo=None)
+                if getattr(b.timestamp, "tzinfo", None)
+                else b.timestamp
+            ),
+            reverse=True,
+        )
         return results[:limit]
 
     # ── Attention hybrid ─────────────────────────────────────────────
