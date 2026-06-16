@@ -1,0 +1,118 @@
+name: CNexus Product CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "brain-memory-ui/frontend/**"
+      - "cnexus-product/**"
+      - "docker-compose.product.yml"
+      - "DEPLOYMENT_SECURITY.md"
+      - ".github/workflows/cnexus-product.yml"
+  pull_request:
+    paths:
+      - "brain-memory-ui/frontend/**"
+      - "cnexus-product/**"
+      - "docker-compose.product.yml"
+      - "DEPLOYMENT_SECURITY.md"
+      - ".github/workflows/cnexus-product.yml"
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: cnexus-product
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: brain-memory-ui/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: brain-memory-ui/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci 2>/dev/null || npm install
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (Next.js standalone)
+        run: npm run build
+
+      - name: Demo mode contract test
+        run: npx --yes tsx scripts/verify-demo-contract.ts
+
+      - name: Kernel boundary
+        run: npm run test:kernel-boundary
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t ${{ env.IMAGE_NAME }}:ci ./brain-memory-ui/frontend
+
+      - name: Smoke run Demo container
+        run: |
+          docker run -d --name cnexus-product-ci -p 3000:3000 \
+            -e CNEXUS_API_BASE=http://localhost:8000 \
+            -e CNEXUS_WS_BASE=ws://localhost:8000 \
+            ${{ env.IMAGE_NAME }}:ci
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ >/dev/null && break
+            sleep 2
+          done
+          curl -sf http://localhost:3000/cnexus-config.json | grep -q apiBase
+          docker logs cnexus-product-ci 2>&1 | head -20
+          docker stop cnexus-product-ci
+
+  publish-docker:
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        run: |
+          IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          docker build -t ${IMAGE}:latest -t ${IMAGE}:${{ github.sha }} ./brain-memory-ui/frontend
+          docker push ${IMAGE}:latest
+          docker push ${IMAGE}:${{ github.sha }}
+
+  publish-npm:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/product-v')
+    defaults:
+      run:
+        working-directory: brain-memory-ui/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci 2>/dev/null || npm install
+      - run: npm run build
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -100,6 +100,14 @@ class TestValuesRuntimeIntegration(unittest.TestCase):
         self.assertIsNotNone(result["value_alignment"])
         self.assertIn("alignment_score", result["value_alignment"])
 
+    def test_prepare_chat_turn_skips_alignment_persist(self):
+        from brain_memory import BrainMemoryRuntime
+
+        runtime = BrainMemoryRuntime(base_dir="memory", project_root=self._tmpdir)
+        payload = runtime.prepare_chat_turn("长期维护认知连续性", use_memory=False, chat_mode=True)
+        self.assertIn("prepare_id", payload)
+        self.assertTrue(payload["prepare_id"])
+
     def test_recall_includes_value_alignment_context(self):
         from brain_memory import BrainMemoryRuntime
 

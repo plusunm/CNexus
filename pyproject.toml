@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "brain-memory-g1"
-version = "1.0.0-g1"
-description = "Persistent Cognitive Runtime for Long-Lived AI Agents (G1)"
+name = "cnexus-runtime-core"
+version = "0.1.0-alpha"
+description = "CNexus cognitive runtime core (Tier 1 — private distribution)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -25,4 +25,9 @@ brain-memory = "brain_memory.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["brain_memory*", "core*", "memory*", "storage*", "runtime*", "api*"]
+include = ["brain_memory*", "core*", "memory*", "storage*", "runtime*"]
+exclude = ["api*"]
+
+[tool.setuptools.package-data]
+core = ["**/*.json"]
+"*" = ["**/*.json"]

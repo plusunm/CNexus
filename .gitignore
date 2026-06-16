@@ -24,6 +24,19 @@ logs/
 # Node
 node_modules/
 .next/
+out/
+out.old.*/
+*.tsbuildinfo
+.cnexus-deps-stamp
+
+# Tauri / Rust
+**/src-tauri/target/
+**/cnexus-runtime-sidecar/target/
+target/
+
+# Local temp / compare
+_tmp_cnexus1_compare/
+scripts/cache/
 
 # IDE / OS
 .idea/

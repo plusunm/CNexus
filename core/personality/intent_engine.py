@@ -410,6 +410,7 @@ class IntentEngine:
         *,
         persona_values: Optional[List[str]] = None,
         importance: float = 0.75,
+        persist: bool = True,
     ) -> Optional["ValueAlignmentRecord"]:
         """Run ValuesGovernance on the top active goal and sync alignment_score."""
         goals = self.get_active_goals(1)
@@ -421,8 +422,10 @@ class IntentEngine:
             persona_values=persona_values,
             importance=importance,
             metadata={"goal_id": top_goal.goal_id},
+            persist=persist,
         )
-        self._sync_goal_alignment(top_goal.goal_id, record.alignment_score)
+        if persist:
+            self._sync_goal_alignment(top_goal.goal_id, record.alignment_score)
         return record
 
     def _sync_goal_alignment(self, goal_id: str, alignment_score: float) -> None:

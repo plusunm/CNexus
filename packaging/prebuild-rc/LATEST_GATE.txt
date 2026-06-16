@@ -1,0 +1,57 @@
+﻿CNexus FINAL RELEASE GATE
+Time: 2026-06-15 04:55:51
+Strict: False
+
+== GATE 0: Toolchain readiness (prebuild-toolchain-check) ==
+[FAIL] toolchain not ready 鈥?run in VS x64 Native Tools (see LATEST_TOOLCHAIN.txt)
+
+== GATE 1: Compile environment (must PASS to build) ==
+[PASS] cargo : cargo 1.96.0 (30a34c682 2026-05-25)
+[PASS] where cargo : C:\Users\刘\.cargo\bin\cargo.exe
+[PASS] rustc : rustc 1.96.0 (ac68faa20 2026-05-25)
+[PASS] where rustc : C:\Users\刘\.cargo\bin\rustc.exe
+[FAIL] link.exe exists but not in PATH: C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\link.exe 鈥?use vcvars64 / Native Tools
+[FAIL] where cl : not found 鈥?MSVC required for Rust MSVC toolchain
+
+== GATE 2: Boot state lock / startup determinism ==
+[PASS] api/system_ready.py
+[PASS] BootStateLock UiRenderAllowed state
+[PASS] BootStateLock FloatWindowShown state
+[PASS] Rust polls /v1/system/ready
+[PASS] boot timeout does not fake ready
+[PASS] show_float_window boot state lock
+[PASS] grant_ui_render command
+[PASS] float.visible=false (no create-and-show)
+[PASS] float 360x228
+[PASS] tauriDesktop listenRuntimeReady event
+[FAIL] DesktopFloatBoot waits runtime-ready 鈥?pattern not found in DesktopFloatBoot.tsx
+[FAIL] DesktopFloatBoot probes system/ready+WS 鈥?pattern not found in DesktopFloatBoot.tsx
+[FAIL] DesktopFloatBoot grants UI render 鈥?pattern not found in DesktopFloatBoot.tsx
+[FAIL] DesktopFloatBoot demo fallback on timeout 鈥?pattern not found in DesktopFloatBoot.tsx
+[PASS] MindRuntimeBridge startup backoff (500ms)
+[PASS] MindRuntimeBridge retry attempts
+[PASS] sidecar stdout/stderr null (no CMD)
+[PASS] sidecar prefers python.exe
+[PASS] single instance plugin (double-click guard)
+
+== GATE 3: Engineering audit (prebuild-audit-full) ==
+[FAIL] prebuild-audit-full failed 鈥?fix before build
+
+== GATE 4: Installer artifact ==
+[WARN] Existing Setup.exe found 鈥?re-run MANUAL install verification after next build: CNexus_0.1.0-alpha_x64-setup.exe
+
+== GATE 5: Smoke pass marker (strict requires fresh smoke) ==
+[PASS] SMOKE_PASS.json ready_ms=26212 age=50.1h
+
+== GATE 6: Manual install / float / process signoff ==
+[PASS] MANUAL_SIGNOFF schema_version=1.1
+[WARN] MANUAL_SIGNOFF.json present but not fully signed 鈥?strict mode will fail
+
+Manual checklist: packaging/prebuild-rc/FINAL_RELEASE_GATE.md
+Manual steps: packaging/prebuild-rc/MANUAL_VERIFICATION.md
+
+========================================
+GATE SUMMARY: PASS=21 WARN=2 FAIL=8
+BUILD ALLOWED: NO
+RC TAG ALLOWED: run prebuild:gate:strict after manual signoff
+========================================

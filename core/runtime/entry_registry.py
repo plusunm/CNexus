@@ -8,9 +8,21 @@ EntryName = Literal[
     "process_interaction",
     "capture",
     "trait_based_reflection",
+    "reflect_due_reviews",
+    "memory_maintenance",
+    "capture_cognition",
+    "governance_validate",
+    "observe_read",
     "v1_capture",
     "memory_capture",
     "legacy_endpoints_capture",
+    "memory_recall",
+    "ir_execute",
+    "ir_compile",
+    "governance_cycle",
+    "chat_prepare",
+    "chat_confirm",
+    "chat_cancel",
 ]
 
 RUNTIME_ENTRY_MATRIX: Dict[str, Dict[str, Any]] = {
@@ -44,6 +56,34 @@ RUNTIME_ENTRY_MATRIX: Dict[str, Dict[str, Any]] = {
         "values_check": False,
         "recommended": True,
     },
+    "reflect_due_reviews": {
+        "full_cognitive_loop": False,
+        "write_gate": True,
+        "reflection": True,
+        "recommended": True,
+    },
+    "memory_maintenance": {
+        "full_cognitive_loop": False,
+        "write_gate": True,
+        "recommended": True,
+    },
+    "capture_cognition": {
+        "full_cognitive_loop": False,
+        "write_gate": True,
+        "reflection": True,
+        "recommended": True,
+    },
+    "governance_validate": {
+        "full_cognitive_loop": False,
+        "read_only": True,
+        "recommended": True,
+    },
+    "observe_read": {
+        "full_cognitive_loop": False,
+        "read_only": True,
+        "mutate_state": False,
+        "recommended": True,
+    },
     "v1_capture": {
         "full_cognitive_loop": False,
         "http_path": "POST /v1/capture",
@@ -55,6 +95,44 @@ RUNTIME_ENTRY_MATRIX: Dict[str, Dict[str, Any]] = {
         "http_path": "POST /memory/capture",
         "deprecated_for_external": True,
         "recommended": False,
+    },
+    "memory_recall": {
+        "full_cognitive_loop": False,
+        "http_path": "GET /memory/recall",
+        "mutate_state": False,
+        "recommended": True,
+    },
+    "ir_execute": {
+        "full_cognitive_loop": False,
+        "http_path": "POST /ir/execute",
+        "recommended": True,
+    },
+    "ir_compile": {
+        "full_cognitive_loop": False,
+        "http_path": "POST /ir/compile",
+        "read_only": True,
+        "recommended": True,
+    },
+    "governance_cycle": {
+        "full_cognitive_loop": False,
+        "http_path": "POST /governance/cycle",
+        "recommended": True,
+    },
+    "chat_prepare": {
+        "full_cognitive_loop": False,
+        "http_path": "POST /chat/prepare",
+        "mutate_state_on_recall": False,
+        "recommended": True,
+    },
+    "chat_confirm": {
+        "full_cognitive_loop": True,
+        "http_path": "POST /chat/confirm",
+        "recommended": True,
+    },
+    "chat_cancel": {
+        "full_cognitive_loop": False,
+        "http_path": "POST /chat/cancel",
+        "recommended": True,
     },
 }
 

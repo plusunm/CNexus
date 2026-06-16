@@ -1,0 +1,53 @@
+# CNexus Runtime — distribution image (wheel, no full repo source)
+# Build: docker build -f brain-memory-ui/Dockerfile.runtime -t cnexus-runtime .
+# L3+: set CNEXUS_DEPLOY_LEVEL=enterprise + CNEXUS_LICENSE + CNEXUS_API_TOKEN at runtime.
+
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+RUN pip install --no-cache-dir build wheel
+
+COPY pyproject.toml README.md requirements.txt ./
+COPY brain_memory ./brain_memory
+COPY core ./core
+COPY memory ./memory
+COPY storage ./storage
+COPY runtime ./runtime
+COPY api ./api
+
+RUN pip wheel . --no-deps -w /wheels
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    BRAIN_MEMORY_ROOT=/app \
+    BM_MEMORY_DIR=/data/memory \
+    CNEXUS_ENV=production \
+    CNEXUS_DEPLOY_LEVEL=internal
+
+COPY requirements.txt ./requirements.txt
+COPY brain-memory-ui/api/requirements.txt ./api-requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -r api-requirements.txt
+
+COPY --from=builder /wheels/*.whl /tmp/wheels/
+RUN pip install --no-cache-dir /tmp/wheels/*.whl && rm -rf /tmp/wheels
+
+COPY config ./config
+COPY brain-memory-ui/api ./brain-memory-ui/api
+COPY api/v1_endpoints.py api/ws_routes.py api/health.py ./brain-memory-ui/api/
+COPY brain-memory-ui/docker-entrypoint-runtime.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+WORKDIR /app/brain-memory-ui
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD python -c "import httpx; httpx.get('http://127.0.0.1:8000/health', timeout=3).raise_for_status()"
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["python", "-m", "api.main"]

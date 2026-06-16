@@ -27,6 +27,13 @@ from memory.block import (
     normalize_block_label,
 )
 
+try:
+    from core.evolved.store_step import apply_sigma_to_block
+    from core.runtime.trace_context import get_trace_id
+except ImportError:  # pragma: no cover
+    apply_sigma_to_block = None  # type: ignore[assignment,misc]
+    get_trace_id = lambda: None  # type: ignore[assignment,misc]
+
 
 def _content_to_str(content: Any) -> str:
     if isinstance(content, str):
@@ -72,7 +79,14 @@ class MemoryBlockStore:
         block_versions.mkdir(parents=True, exist_ok=True)
         return block_versions / f"v{version}.json"
 
-    def _write_block(self, block: MemoryBlock) -> None:
+    def _sync_sigma_metadata(self, block: MemoryBlock, *, trace_id: Optional[str] = None) -> None:
+        if apply_sigma_to_block is None:
+            return
+        tid = trace_id or (get_trace_id() if callable(get_trace_id) else None)
+        apply_sigma_to_block(block, trace_id=tid)
+
+    def _write_block(self, block: MemoryBlock, *, trace_id: Optional[str] = None) -> None:
+        self._sync_sigma_metadata(block, trace_id=trace_id)
         atomic_write_json(self._block_path(block.block_id), block.model_dump_for_storage())
 
     def _write_version(self, block: MemoryBlock) -> None:
@@ -158,7 +172,7 @@ class MemoryBlockStore:
                 )
 
         block.updated_at = datetime.now()
-        self._write_block(block)
+        self._write_block(block, trace_id=get_trace_id() if callable(get_trace_id) else None)
         self._register(block)
         self._append_provenance({
             "event": "create",
@@ -172,9 +186,9 @@ class MemoryBlockStore:
     def get(self, block_id: str) -> Optional[MemoryBlock]:
         return self._read_block(block_id)
 
-    def save(self, block: MemoryBlock) -> MemoryBlock:
+    def save(self, block: MemoryBlock, *, trace_id: Optional[str] = None) -> MemoryBlock:
         block.updated_at = datetime.now()
-        self._write_block(block)
+        self._write_block(block, trace_id=trace_id or (get_trace_id() if callable(get_trace_id) else None))
         self._register(block)
         return block
 
@@ -229,7 +243,7 @@ class MemoryBlockStore:
         if embedding is not None:
             current.embedding = embedding
 
-        self._write_block(current)
+        self._write_block(current, trace_id=get_trace_id() if callable(get_trace_id) else None)
         self._register(current)
         self._append_provenance({
             "event": "update",
@@ -248,7 +262,7 @@ class MemoryBlockStore:
         current.active = False
         current.updated_at = datetime.now()
         self._untrack_aux_indexes(current)
-        self._write_block(current)
+        self._write_block(current, trace_id=get_trace_id() if callable(get_trace_id) else None)
         self._register(current)
         self._append_provenance({
             "event": "delete",
@@ -540,16 +554,31 @@ class MemoryBlockStore:
 
     # ── Stats & export ───────────────────────────────────────────────
 
+    def get_sigma_projection(self, block_id: str) -> Optional[Dict[str, Any]]:
+        """Return Runbook Σ.M projection for a persisted block."""
+        block = self._read_block(block_id)
+        if not block:
+            return None
+        if apply_sigma_to_block is None:
+            return None
+        from core.evolved.sigma_mapping import memory_block_to_sigma_m
+
+        return memory_block_to_sigma_m(block, trace_id=get_trace_id() if callable(get_trace_id) else None)
+
     def stats(self) -> Dict[str, Any]:
         active = self.list_blocks(active_only=True)
         episodic_count = {key: len(ids) for key, ids in self._episodic_index.items()}
         last_updated = max((block.updated_at for block in active), default=None)
+        sigma_slots = sum(
+            1 for block in active if (block.metadata or {}).get("sigma_slot") == "Σ.M"
+        )
         return {
             "total_blocks": len(active),
             "by_priority": {block.label: block.priority for block in active},
             "episodic_counts": episodic_count,
             "has_attention_snapshot": self.get_attention_snapshot() is not None,
             "last_updated": last_updated.isoformat() if last_updated else None,
+            "sigma_m_blocks": sigma_slots,
         }
 
     def to_json(self) -> str:

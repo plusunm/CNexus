@@ -1,0 +1,4 @@
+# Manual RC signoff screenshots — keep locally, do not commit binaries by default
+*
+!.gitignore
+!README.txt

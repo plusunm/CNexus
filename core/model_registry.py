@@ -68,11 +68,11 @@ DEFAULT_MODELS = [
     ),
     ModelProfile(
         id="deepseek-chat",
-        name="DeepSeek Chat",
+        name="DeepSeek V4 Flash",
         provider="openai_compatible",
-        base_url="https://api.deepseek.com/v1",
+        base_url="https://api.deepseek.com",
         api_key="",
-        model="deepseek-chat",
+        model="deepseek-v4-flash",
     ),
     ModelProfile(
         id="moonshot-kimi",
@@ -130,8 +130,34 @@ class ModelRegistry:
                 data = json.load(f)
             self.models = [ModelProfile(**m) for m in data.get("models", [])]
             self._merge_missing_defaults()
+            self._normalize_legacy_profiles()
         else:
             self.models = [m.model_copy() for m in DEFAULT_MODELS]
+            self.save()
+
+    def _normalize_legacy_profiles(self):
+        """Migrate stored DeepSeek presets to official base URL + V4 model ids."""
+        legacy_models = {
+            "deepseek-chat": "deepseek-v4-flash",
+            "deepseek-reasoner": "deepseek-v4-pro",
+        }
+        changed = False
+        for m in self.models:
+            host = m.base_url.lower()
+            if "deepseek.com" not in host:
+                continue
+            base = m.base_url.rstrip("/")
+            if base.endswith("/v1") or base == "https://api.deepseek.com/v1":
+                m.base_url = "https://api.deepseek.com"
+                changed = True
+            mapped = legacy_models.get(m.model.strip())
+            if mapped and m.model != mapped:
+                m.model = mapped
+                changed = True
+            if m.id == "deepseek-chat" and m.name == "DeepSeek Chat":
+                m.name = "DeepSeek V4 Flash"
+                changed = True
+        if changed:
             self.save()
 
     def _merge_missing_defaults(self):

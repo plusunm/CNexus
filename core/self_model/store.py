@@ -38,6 +38,12 @@ class SelfModelStore:
             encoding="utf-8",
         )
 
+    def store_step_touch(self, *, block_updated_at: Optional[str] = None) -> Dict[str, Any]:
+        """Runbook STORE_step writer — merges last_reconstruction with block_updated_at."""
+        from core.evolved.cognitive_hooks import apply_store_selfmodel_step
+
+        return apply_store_selfmodel_step(self, block_updated_at=block_updated_at)
+
     def integrate(
         self,
         user_input: str,

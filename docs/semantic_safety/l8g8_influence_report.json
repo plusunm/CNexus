@@ -9,7 +9,7 @@
   "baseline_mode": "baseline",
   "injection_mode": "injection",
   "result": {
-    "response_drift": 0.0,
+    "response_drift": 0.4483,
     "memory_drift": 0.0,
     "routing_drift": 0.0
   },
@@ -19,35 +19,35 @@
     "routing_drift_safe": 0.0
   },
   "conclusion": {
-    "semantic_leakage": false,
+    "semantic_leakage": true,
     "control_leakage": false,
-    "confidence": 0.92,
+    "confidence": 0.9983,
     "interpretation": [
-      "observational_only_confirmed"
+      "weak_leakage"
     ]
   },
   "interpretation": [
-    "observational_only_confirmed"
+    "weak_leakage"
   ],
   "details": {
     "response": {
-      "drift_score": 0.0,
+      "drift_score": 0.4483,
       "pairs": [
         {
           "turn": 0,
-          "equal": true
+          "equal": false
         },
         {
           "turn": 1,
-          "equal": true
+          "equal": false
         },
         {
           "turn": 2,
-          "equal": true
+          "equal": false
         },
         {
           "turn": 3,
-          "equal": true
+          "equal": false
         }
       ],
       "safe_threshold": 0.05
@@ -61,10 +61,10 @@
       "mismatches": [],
       "safe_threshold": 0.0
     },
-    "significant": false
+    "significant": true
   },
   "runs": {
-    "baseline_data_dir": "C:\\Users\\刘\\AppData\\Local\\Temp\\cnexus_influence_v5aqubxe",
-    "injection_data_dir": "C:\\Users\\刘\\AppData\\Local\\Temp\\cnexus_influence_0fc3a4y0"
+    "baseline_data_dir": "C:\\Users\\刘\\AppData\\Local\\Temp\\cnexus_influence_052y0_58",
+    "injection_data_dir": "C:\\Users\\刘\\AppData\\Local\\Temp\\cnexus_influence_oh03h6ic"
   }
 }

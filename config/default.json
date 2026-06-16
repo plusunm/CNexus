@@ -101,6 +101,24 @@
     "gtbs_shadow_persist": false,
     "enable_gtbs_capture": false
   },
+  "gtbs": {
+    "enable_write_intent_shadow": true,
+    "enable_write_intent_soft_gate": false,
+    "enable_write_intent_tx_rollback": false
+  },
+  "chat_default_full_cognitive_loop": true,
+  "chat_defer_cognition": true,
+  "governance_background_enabled": true,
+  "capture_cognize_default": true,
+  "embedding_fail_loud_in_production": true,
+  "local_stack_bootstrap_models": true,
+  "runtime_mode": "auto",
+  "compute": {
+    "mode": "auto",
+    "locality": "local",
+    "safe_baseline_ram_gb": 16,
+    "preserve_keys": []
+  },
   "safety": {
     "write_gate_threshold": 0.65,
     "mutation_max_daily_delta": 0.012,

@@ -6,7 +6,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from api.deps import get_llm, get_registry, get_runtime, get_skill_registry
+from api.deps import get_legacy_adapter, get_llm, get_registry, get_skill_registry
 from core.openai_compat.handler import create_chat_completion, list_model_cards
 from core.openai_compat.models import ChatCompletionRequest, ChatCompletionResponse
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/v1", tags=["openai-compatible"])
 @router.post("/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(
     request: ChatCompletionRequest,
-    runtime=Depends(get_runtime),
+    legacy_adapter=Depends(get_legacy_adapter),
     registry=Depends(get_registry),
     llm=Depends(get_llm),
     skills=Depends(get_skill_registry),
@@ -24,10 +24,11 @@ async def chat_completions(
     try:
         return await create_chat_completion(
             request,
-            runtime=runtime,
+            runtime=legacy_adapter.runtime,
             registry=registry,
             llm_client=llm,
             skills=skills,
+            legacy_adapter=legacy_adapter,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

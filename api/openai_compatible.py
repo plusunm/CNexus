@@ -14,7 +14,6 @@ PROJECT_ROOT = Path(os.environ.get("BRAIN_MEMORY_ROOT", Path(__file__).resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from brain_memory import BrainMemoryRuntime  # noqa: E402
-from core.llm_client import LLMClient  # noqa: E402
 from core.model_registry import ModelRegistry  # noqa: E402
 from core.openai_compat.handler import create_chat_completion, list_model_cards  # noqa: E402
 from core.openai_compat.models import ChatCompletionRequest, ChatCompletionResponse  # noqa: E402
@@ -24,7 +23,6 @@ router = APIRouter(prefix="/v1", tags=["openai-compatible"])
 
 _runtime: Optional[BrainMemoryRuntime] = None
 _registry: Optional[ModelRegistry] = None
-_llm = LLMClient()
 _skills: Optional[SkillRegistry] = None
 
 
@@ -51,14 +49,28 @@ def _get_skills() -> SkillRegistry:
 
 @router.post("/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(request: ChatCompletionRequest):
+    from core.control_plane.exceptions import ControlDecisionRejected
+
+    try:
+        from api.server import get_legacy_adapter
+
+        legacy_adapter = get_legacy_adapter()
+    except Exception:
+        legacy_adapter = None
     try:
         return await create_chat_completion(
             request,
             runtime=_get_runtime(),
             registry=_get_registry(),
-            llm_client=_llm,
+            llm_client=_get_runtime().llm_client,
             skills=_get_skills(),
+            legacy_adapter=legacy_adapter,
         )
+    except ControlDecisionRejected as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "control_plane_rejected", "reason": exc.decision.reason},
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

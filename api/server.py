@@ -9,7 +9,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from brain_memory import BrainMemoryRuntime
-from core.llm_client import LLMClient
+from core.control_plane.dispatch import AuthorityDispatcher
+from core.control_plane.exceptions import ControlDecisionRejected
+from core.control_plane.legacy_adapter import LegacyDispatchAdapter
 from core.model_registry import ModelProfile, ModelRegistry
 
 PROJECT_ROOT = Path(os.environ.get("BRAIN_MEMORY_ROOT", Path(__file__).resolve().parent.parent))
@@ -33,7 +35,8 @@ app.add_middleware(
 
 _runtime: Optional[BrainMemoryRuntime] = None
 _registry: Optional[ModelRegistry] = None
-_llm = LLMClient()
+_dispatcher: Optional[AuthorityDispatcher] = None
+_legacy_adapter: Optional[LegacyDispatchAdapter] = None
 
 
 def get_runtime() -> BrainMemoryRuntime:
@@ -43,6 +46,20 @@ def get_runtime() -> BrainMemoryRuntime:
     return _runtime
 
 
+def get_dispatcher() -> AuthorityDispatcher:
+    global _dispatcher
+    if _dispatcher is None:
+        _dispatcher = AuthorityDispatcher(get_runtime())
+    return _dispatcher
+
+
+def get_legacy_adapter() -> LegacyDispatchAdapter:
+    global _legacy_adapter
+    if _legacy_adapter is None:
+        _legacy_adapter = LegacyDispatchAdapter(get_dispatcher())
+    return _legacy_adapter
+
+
 def get_registry() -> ModelRegistry:
     global _registry
     if _registry is None:
@@ -50,15 +67,21 @@ def get_registry() -> ModelRegistry:
     return _registry
 
 
+def get_llm():
+    return get_runtime().llm_client
+
+
 configure_v1_dependencies(
     get_runtime=get_runtime,
-    get_llm=lambda: _llm,
+    get_llm=get_llm,
     get_registry=get_registry,
+    get_legacy_adapter=get_legacy_adapter,
 )
 configure_ws_dependencies(
     get_runtime=get_runtime,
-    get_llm=lambda: _llm,
+    get_llm=get_llm,
     get_registry=get_registry,
+    get_legacy_adapter=get_legacy_adapter,
 )
 
 
@@ -157,7 +180,7 @@ def test_model(model_id: str):
     profile = get_registry().get(model_id)
     if not profile:
         raise HTTPException(404, "Model not found")
-    ok, detail = _llm.test_connection(profile)
+    ok, detail = get_llm().test_connection(profile)
     return {"success": ok, "detail": detail}
 
 
@@ -168,15 +191,16 @@ def chat(req: ChatRequest):
     if not profile or not profile.enabled:
         raise HTTPException(400, "No available model. Please add one in Settings.")
 
-    runtime = get_runtime()
     try:
-        result = runtime.process_interaction(
-            req.message,
+        result = get_legacy_adapter().chat(
+            message=req.message,
             use_memory=req.use_memory,
             temperature=req.temperature,
-            llm_client=_llm,
+            llm_client=get_llm(),
             llm_profile=profile,
         )
+    except ControlDecisionRejected as exc:
+        raise HTTPException(403, f"control plane rejected: {exc.decision.reason}") from exc
     except Exception as exc:
         raise HTTPException(502, f"LLM request failed: {exc}") from exc
 
@@ -201,12 +225,18 @@ def chat(req: ChatRequest):
 
 @app.post("/api/governance")
 def governance():
-    return get_runtime().run_governance_cycle()
+    try:
+        return get_legacy_adapter().governance_cycle()
+    except ControlDecisionRejected as exc:
+        raise HTTPException(403, f"control plane rejected: {exc.decision.reason}") from exc
 
 
 @app.get("/api/memory/recall")
 def recall_preview(q: str):
-    return {"context": get_runtime().recall(q)}
+    try:
+        return {"context": get_legacy_adapter().recall_preview(q)}
+    except ControlDecisionRejected as exc:
+        raise HTTPException(403, f"control plane rejected: {exc.decision.reason}") from exc
 
 
 if WEB_DIR.exists():

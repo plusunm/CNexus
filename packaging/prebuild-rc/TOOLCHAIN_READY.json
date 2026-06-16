@@ -1,0 +1,26 @@
+﻿{
+    "at":  "2026-06-16T20:55:27.1485403+08:00",
+    "ready":  false,
+    "checks":  {
+                   "cl":  false,
+                   "link":  false,
+                   "msvc_path_cl":  null,
+                   "msvc_path_link":  "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe",
+                   "windows_sdk":  true,
+                   "rust":  true,
+                   "cargo":  true,
+                   "rustc_version":  "rustc 1.96.0 (ac68faa20 2026-05-25)",
+                   "cargo_version":  "cargo 1.96.0 (30a34c682 2026-05-25)",
+                   "node":  true,
+                   "node_version":  "24.15.0",
+                   "npm":  true,
+                   "npm_version":  "11.12.1",
+                   "tauri":  true,
+                   "tauri_version":  "tauri-cli 2.11.2",
+                   "ready":  false
+               },
+    "hints":  [
+                  "use VS x64 Native Tools or vcvars64.bat",
+                  "vcvars64: C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\VC\\Auxiliary\\Build\\vcvars64.bat"
+              ]
+}

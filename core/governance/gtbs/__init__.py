@@ -4,8 +4,8 @@ from core.governance.gtbs.capture_boundary import (
     CaptureMutationBoundary,
     GTBS_CAPTURE_MODE,
     GTBS_CAPTURE_VERSION,
-    infer_capture_target_stores,
 )
+from core.governance.gtbs.adapters.capture_adapter import infer_capture_target_stores
 from core.governance.gtbs.divergence_analysis import DivergenceAnalyzer, DivergenceLandscapeReport
 from core.governance.gtbs.divergence_collector import (
     GTBSShadowDivergenceCollector,
@@ -29,6 +29,20 @@ from core.governance.gtbs.types import (
     TargetStore,
     TransactionState,
 )
+from core.governance.gtbs.write_intent import (
+    GTBS_WRITE_INTENT_MODE,
+    GTBS_WRITE_INTENT_VERSION,
+    MutabilityLevel,
+    WriteIntent,
+    WriteIntentKind,
+    WriteProvenance,
+)
+from core.governance.gtbs.write_intent_bus import (
+    WriteIntentBus,
+    build_current_provenance,
+    shadow_emit_enabled,
+    write_intent_provenance_scope,
+)
 
 __all__ = [
     "GTBS_CAPTURE_MODE",
@@ -45,6 +59,16 @@ __all__ = [
     "RuntimeGatekeeper",
     "get_shadow_collector",
     "infer_capture_target_stores",
+    "GTBS_WRITE_INTENT_MODE",
+    "GTBS_WRITE_INTENT_VERSION",
+    "WriteIntent",
+    "WriteIntentBus",
+    "WriteIntentKind",
+    "WriteProvenance",
+    "MutabilityLevel",
+    "build_current_provenance",
+    "shadow_emit_enabled",
+    "write_intent_provenance_scope",
     "AuditTransactionEvent",
     "GovernanceProposal",
     "GovernanceTransaction",

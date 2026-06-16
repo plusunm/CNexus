@@ -1,111 +1,98 @@
-# CNexus UI
+# CNexus UI / CNexus Product
 
-**CNexus 的可视化与交互层** — 与核心 Runtime 解耦，支持 Web / Desktop / Mobile 多端。
+**CNexus Product** — 可独立部署的 Mind UI（Demo 离线 + 可选 Runtime 绑定）。  
+**CNexus Runtime** — FastAPI + `brain_memory` 认知内核（可单独运行）。
 
 ## 架构
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│  brain-memory-ui                                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
-│  │ Next.js  │  │  Tauri   │  │ Flutter  │            │
-│  │   Web    │  │ Desktop  │  │  Mobile  │            │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘            │
-│       └─────────────┼─────────────┘                    │
-│                     │ HTTP / WebSocket                │
-│              ┌──────▼──────┐                           │
-│              │  FastAPI    │  :8000                   │
-│              │  Runtime API│                           │
-│              └──────┬──────┘                           │
-└─────────────────────┼──────────────────────────────────┘
-                      │
-              ┌───────▼────────┐
-              │ CNexus Core    │  (brain_memory/)
-              └────────────────┘
+│  CNexus Product (frontend/)          :3000              │
+│  Demo 模式 ── mock MindOverview（零 API）               │
+│  Runtime 模式 ── GET /v1/mind/overview + WS /ws/state   │
+└──────────────────────┬──────────────────────────────────┘
+                       │ HTTP / WebSocket（契约，不 import Python）
+              ┌────────▼────────┐
+              │  Runtime API    │  :8000  (api/)
+              └────────┬────────┘
+                       │
+              ┌────────▼────────┐
+              │  CNexus Core    │  brain_memory/
+              └─────────────────┘
 ```
 
-## 技术栈
-
-| 层面 | 技术 |
-|------|------|
-| Web | Next.js 15 + TypeScript + Tailwind + Zustand + Recharts |
-| API | FastAPI + WebSocket |
-| Desktop | Tauri 2.0（待集成，复用 Web 前端） |
-| Mobile | Flutter 3.24（待集成，调用同一 API） |
+> 独立部署说明见 **[PRODUCT.md](./PRODUCT.md)**
 
 ## 快速启动
 
-### 1. 安装核心依赖（仓库根目录）
+### A. 仅 CNexus Product（Demo，无需后端）
 
-```bash
-cd "D:\类脑记忆\CNexus — Observational Cognition Platform"
-pip install -r requirements.txt
-pip install -r brain-memory-ui/api/requirements.txt
+```powershell
+.\brain-memory-ui\scripts\start-product.ps1
 ```
 
-### 2. 启动 Runtime API（端口 8000）
+浏览器 → **http://localhost:3000** → 选择 **加载 CNexus Demo**
 
-```bash
-cd brain-memory-ui
-python -m api.main
-```
-
-### 3. 启动 Web 前端（端口 3000）
-
-```bash
-cd brain-memory-ui/frontend
-npm install
-npm run dev
-```
-
-浏览器打开：**http://localhost:3000**
-
-### 一键启动（Windows）
+### B. Product + Runtime 组合
 
 ```powershell
 .\brain-memory-ui\scripts\start.ps1
 ```
 
-## API 端点
+或 Docker 全栈：
+
+```bash
+cd brain-memory-ui
+docker compose -f docker-compose.full.yml up --build
+```
+
+### C. Docker 仅 Product
+
+```bash
+cd brain-memory-ui
+docker compose -f docker-compose.product.yml up --build
+```
+
+## API 契约（Product 消费面）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| GET | `/v1/mind/overview` | **稳定契约** — Mind 概览快照 |
 | GET | `/health` | 健康检查 |
-| POST | `/memory/capture` | 写入记忆 |
-| GET | `/memory/recall?query=` | 召回记忆 |
-| POST | `/chat` | 对话（含记忆） |
-| GET | `/models` | 模型列表 |
-| GET | `/governance/state` | 实时状态 |
-| POST | `/governance/cycle` | 稳定性治理 |
-| WS | `/ws/state` | 状态流推送（2s） |
-| WS | `/ws/chat` | WebSocket 对话 |
+| POST | `/chat` | 对话（Runtime 模式） |
+| GET | `/memory/recall?query=` | 搜索 |
+| POST | `/memory/capture` | 写入 |
+| WS | `/ws/state` | 状态流（含 `mind_overview`） |
 
-## Agent 集成
+完整说明：[docs/CNEXUS_PRODUCT_API.md](./docs/CNEXUS_PRODUCT_API.md)
 
-Agent 只需调用 Runtime API，无需嵌入 UI：
+## 配置 Runtime 地址
 
-```python
-import httpx
-ctx = httpx.get("http://localhost:8000/memory/recall", params={"query": "用户目标"}).json()
-# 注入 LLM → 回复后 POST /memory/capture
+```bash
+# frontend/.env.local
+NEXT_PUBLIC_API_BASE=http://localhost:8000
+NEXT_PUBLIC_WS_BASE=ws://localhost:8000
+```
+
+Docker 运行时（无需 rebuild）：
+
+```bash
+-e CNEXUS_API_BASE=http://localhost:8000
+-e CNEXUS_WS_BASE=ws://localhost:8000
 ```
 
 ## 目录
 
 ```text
 brain-memory-ui/
-├── api/           # FastAPI Runtime API
-├── frontend/      # Next.js Web
-├── desktop/       # Tauri（ scaffold ）
-├── mobile/        # Flutter（ scaffold ）
-├── shared/        # 共享类型
-├── scripts/       # 启动脚本
+├── frontend/              # CNexus Product (cnexus-product npm)
+├── api/                   # Runtime API
+├── Dockerfile.runtime     # Runtime 镜像
+├── docker-compose.product.yml
+├── docker-compose.full.yml
+├── PRODUCT.md             # 独立产品部署
+├── scripts/
+│   ├── start-product.ps1  # UI only
+│   └── start.ps1          # UI + Runtime
 └── docs/
 ```
-
-## 与旧版 web/ 的关系
-
-- `web/` — 轻量单页 UI（FastAPI 静态，:8080）
-- `brain-memory-ui/` — 正式产品级 UI 模块（Next.js + 独立 API，:3000 + :8000）
-
-建议新项目使用 **brain-memory-ui**。

@@ -14,6 +14,7 @@ from core.openai_compat.models import (
     ChatCompletionResponse,
     ChatMessage,
 )
+from core.control_plane.legacy_adapter import LEGACY_OPENAI_CHANNEL
 from core.skill.skill_registry import SkillRegistry
 
 
@@ -73,6 +74,7 @@ async def create_chat_completion(
     registry: Any,
     llm_client: LLMClient,
     skills: SkillRegistry,
+    legacy_adapter: Any = None,
 ) -> ChatCompletionResponse:
     if request.stream:
         raise ValueError("stream=true is not supported yet")
@@ -113,15 +115,32 @@ async def create_chat_completion(
     assistant_output = metadata.get("assistant_output")
 
     if full_cognitive_loop:
-        result = runtime.process_interaction(
-            last_user_msg,
-            assistant_output=assistant_output,
-            use_memory=use_memory,
-            temperature=request.temperature,
-            llm_client=llm_client,
-            llm_profile=llm_profile,
-            allow_proactive=allow_proactive,
-        )
+        if legacy_adapter is None:
+            from core.kernel.enforce.mode import hard_lock_mode
+
+            if hard_lock_mode():
+                raise ValueError("kernel execution required: legacy_adapter missing under hard lock")
+            result = runtime.process_interaction(
+                last_user_msg,
+                assistant_output=assistant_output,
+                use_memory=use_memory,
+                temperature=request.temperature,
+                llm_client=llm_client,
+                llm_profile=llm_profile,
+                allow_proactive=allow_proactive,
+            )
+        else:
+            result = legacy_adapter.interact(
+                message=last_user_msg,
+                assistant_output=assistant_output,
+                use_memory=use_memory,
+                temperature=request.temperature,
+                llm_client=llm_client,
+                llm_profile=llm_profile,
+                allow_proactive=allow_proactive,
+                metadata=metadata,
+                channel=LEGACY_OPENAI_CHANNEL,
+            )
         if not result.get("ok", True):
             reply = result.get("reply") or result.get("response", "")
             cnexus_meta.update(
@@ -189,6 +208,25 @@ async def create_chat_completion(
         cnexus_meta["ok"] = True
 
     usage = _estimate_usage(last_user_msg, reply)
+
+    try:
+        trace_id = None
+        if cnexus_provenance:
+            trace_id = cnexus_provenance.get("trace_id")
+        base_dir = str(getattr(runtime, "base_dir", "") or "")
+        if trace_id and base_dir:
+            from core.spine.token.hooks import emit_tokens_for_llm_usage
+
+            emit_tokens_for_llm_usage(
+                str(trace_id),
+                prompt_tokens=int(usage.get("prompt_tokens") or 0),
+                completion_tokens=int(usage.get("completion_tokens") or 0),
+                base_dir=base_dir,
+                caller="openai_compat",
+            )
+    except Exception:
+        pass
+
     return ChatCompletionResponse(
         model=request.model,
         choices=[

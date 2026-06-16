@@ -91,6 +91,11 @@
     "gtbs_shadow_persist": true,
     "enable_gtbs_capture": true
   },
+  "gtbs": {
+    "enable_write_intent_shadow": true,
+    "enable_write_intent_soft_gate": true,
+    "enable_write_intent_tx_rollback": true
+  },
   "safety": {
     "write_gate_threshold": 0.65,
     "mutation_max_daily_delta": 0.012,

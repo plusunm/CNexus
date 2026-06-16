@@ -1,18 +1,15 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
-  title: "Brain-Memory G1 UI",
-  description: "Persistent Cognitive Runtime — Visualization & Control",
+  title: "CNexus — Mind 概览",
+  description: "Observational Cognition Platform — 心智系统实时状态总览",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body>
-        <AppShell>{children}</AppShell>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

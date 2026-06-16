@@ -1,10 +1,11 @@
 import asyncio
 import json
-from typing import AsyncGenerator
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from api.deps import get_runtime, get_registry, get_llm
+from api.deps import get_dispatcher, get_llm, get_registry, peek_runtime
+from core.runtime.event_loop_offload import EventLoopOffloadTimeout, offload_sync
+from core.runtime.boot_protocol import boot_status
 
 router = APIRouter()
 
@@ -12,11 +13,14 @@ router = APIRouter()
 @router.websocket("/ws/state")
 async def state_stream(websocket: WebSocket):
     await websocket.accept()
-    runtime = get_runtime()
     try:
         while True:
-            state = runtime.get_current_state()
-            await websocket.send_text(json.dumps(state, ensure_ascii=False, default=str))
+            runtime = peek_runtime()
+            if runtime is None:
+                payload = {"warming": True, "boot": boot_status()}
+            else:
+                payload = await asyncio.to_thread(runtime.get_control_plane_snapshot)
+            await websocket.send_text(json.dumps(payload, ensure_ascii=False, default=str))
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         pass
@@ -26,9 +30,14 @@ async def state_stream(websocket: WebSocket):
 
 @router.websocket("/ws/chat")
 async def chat_stream(websocket: WebSocket):
-    """Streaming chat — full cognitive loop via process_interaction."""
+    """Streaming chat — full cognitive loop via dispatcher/kernel."""
     await websocket.accept()
-    runtime = get_runtime()
+    runtime = peek_runtime()
+    if runtime is None:
+        await websocket.send_text(json.dumps({"error": "runtime_warming"}))
+        await websocket.close()
+        return
+
     registry = get_registry()
     llm = get_llm()
 
@@ -46,11 +55,14 @@ async def chat_stream(websocket: WebSocket):
                 continue
 
             try:
-                result = runtime.process_interaction(
-                    message,
-                    use_memory=use_memory,
-                    llm_client=llm,
-                    llm_profile=profile,
+                result = await offload_sync(
+                    lambda: get_dispatcher().ws_chat(
+                        message=message,
+                        use_memory=use_memory,
+                        llm_client=llm,
+                        llm_profile=profile,
+                        chat_mode=True,
+                    )
                 )
                 reply = result.get("reply") or result.get("response", "")
                 await websocket.send_text(
@@ -63,6 +75,8 @@ async def chat_stream(websocket: WebSocket):
                         }
                     )
                 )
+            except EventLoopOffloadTimeout:
+                await websocket.send_text(json.dumps({"type": "error", "error": "runtime_timeout"}))
             except Exception as exc:
                 await websocket.send_text(json.dumps({"type": "error", "error": str(exc)}))
     except WebSocketDisconnect:

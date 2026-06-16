@@ -280,7 +280,12 @@ runtime.maintain_memory(force=True)                     # 生命周期维护
 # 治理
 runtime.run_governance_cycle()  # 含 memory_maintenance
 runtime.process_interaction(user_input, assistant_output=...)  # 完整闭环
-# HTTP: POST /chat { full_cognitive_loop: true }  # 默认已接线
+# Layer 2 — Local Execution Plane (LEP)
+# GET /v1/execution/status  → provider selection hint (not cognition gate)
+# POST /v1/execution/bootstrap → pull default chat/embed models
+# Core (Σ_cognitive) calls ExecutionPlane only — provider-agnostic
+# POST /v1/memory/capture { cognize: true }  # 导入后触发反思 + 治理
+# config: governance_background_enabled → API startup 后台治理循环
 ```
 
 **推荐 API：** `brain-memory-ui/api/` (:8000) — REST + WebSocket  

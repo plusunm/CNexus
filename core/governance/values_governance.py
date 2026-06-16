@@ -91,8 +91,9 @@ class ValuesGovernance:
         importance: float = 0.7,
         *,
         metadata: Optional[Dict[str, Any]] = None,
+        persist: bool = True,
     ) -> ValueAlignmentRecord:
-        """Evaluate one intent description against persona values and persist history."""
+        """Evaluate one intent description against persona values; optionally persist history."""
         persona_values = persona_values or self._get_persona_core_values()
         alignment_score = self._calculate_alignment_score(intent_description, persona_values)
         status, reasons, suggestions = self._evaluate_alignment(
@@ -111,17 +112,18 @@ class ValuesGovernance:
         )
 
         payload = self._dump_record(record)
-        gov = self.memory.governance.check(VALUE_ALIGNMENT_LABEL, payload, importance)
-        if gov.allowed:
-            self.memory.create_block(
-                VALUE_ALIGNMENT_LABEL,
-                payload,
-                importance=importance,
-                source="values_governance",
-            )
-        else:
-            record.metadata["write_denied"] = True
-            record.metadata["deny_reason"] = gov.reason
+        if persist:
+            gov = self.memory.governance.check(VALUE_ALIGNMENT_LABEL, payload, importance)
+            if gov.allowed:
+                self.memory.create_block(
+                    VALUE_ALIGNMENT_LABEL,
+                    payload,
+                    importance=importance,
+                    source="values_governance",
+                )
+            else:
+                record.metadata["write_denied"] = True
+                record.metadata["deny_reason"] = gov.reason
 
         return record
 

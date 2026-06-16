@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -9,19 +10,27 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
 from brain_memory import BrainMemoryRuntime
 
 from api.health import deep_health_payload, shallow_health_payload
+from api.system_ready import system_ready_payload
+
+from core.control_plane.exceptions import ControlDecisionRejected
+from core.control_plane.legacy_adapter import LegacyDispatchAdapter
+from core.runtime.event_loop_offload import EventLoopOffloadTimeout, offload_sync
 
 RuntimeProvider = Callable[[], BrainMemoryRuntime]
 LLMProvider = Callable[[], Any]
 RegistryProvider = Callable[[], Any]
+LegacyAdapterProvider = Callable[[], LegacyDispatchAdapter]
 
 _runtime_provider: Optional[RuntimeProvider] = None
 _llm_provider: Optional[LLMProvider] = None
 _registry_provider: Optional[RegistryProvider] = None
+_legacy_adapter_provider: Optional[LegacyAdapterProvider] = None
 
 router = APIRouter(tags=["v1-spec"])
 logger = logging.getLogger(__name__)
@@ -32,11 +41,13 @@ def configure_v1_dependencies(
     get_runtime: RuntimeProvider,
     get_llm: Optional[LLMProvider] = None,
     get_registry: Optional[RegistryProvider] = None,
+    get_legacy_adapter: Optional[LegacyAdapterProvider] = None,
 ) -> None:
-    global _runtime_provider, _llm_provider, _registry_provider
+    global _runtime_provider, _llm_provider, _registry_provider, _legacy_adapter_provider
     _runtime_provider = get_runtime
     _llm_provider = get_llm
     _registry_provider = get_registry
+    _legacy_adapter_provider = get_legacy_adapter
 
 
 def _resolve_runtime() -> BrainMemoryRuntime:
@@ -49,6 +60,12 @@ def _resolve_runtime() -> BrainMemoryRuntime:
 
 def get_runtime() -> BrainMemoryRuntime:
     return _resolve_runtime()
+
+
+def get_legacy_adapter() -> LegacyDispatchAdapter:
+    if _legacy_adapter_provider is not None:
+        return _legacy_adapter_provider()
+    return LegacyDispatchAdapter.from_runtime(_resolve_runtime())
 
 
 class InteractRequest(BaseModel):
@@ -82,6 +99,41 @@ class InteractResponse(BaseModel):
     coherence_score: Optional[float] = None
     emotion_state: Optional[Dict[str, Any]] = None
     meta: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ComputeRequest(BaseModel):
+    intent: str = Field(..., min_length=1)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class FastChatRequest(BaseModel):
+    input: str = Field(..., min_length=1)
+    message: Optional[str] = None
+    model_id: Optional[str] = None
+    timeout_s: Optional[float] = None
+    intent: Optional[str] = None
+    delta: Optional[Dict[str, Any]] = None
+
+
+class IntentRequest(BaseModel):
+    intent: str = Field(..., min_length=1)
+    input: Optional[str] = None
+    message: Optional[str] = None
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SIBTProjectRequest(BaseModel):
+    input: str = Field(..., min_length=1)
+    source_lang: Optional[str] = None
+    intent: Optional[str] = None
+    semantic_layer: Optional[Dict[str, Any]] = None
+
+
+class FastChatResponse(BaseModel):
+    response: str
+    status: str = "ok"
+    path: str = "fast_lane_v1"
+    mode: Optional[str] = None
 
 
 class StatusV11Response(BaseModel):
@@ -328,17 +380,27 @@ async def v1_interact(
             raise HTTPException(status_code=400, detail="No LLM model configured for /v1/interact")
         llm_client = _llm_provider()
 
+    adapter = get_legacy_adapter()
     try:
-        result = runtime.process_interaction(
-            req.message,
-            user_id=req.user_id,
-            metadata=meta,
-            use_memory=use_memory,
-            temperature=temperature,
-            llm_client=llm_client,
-            llm_profile=llm_profile,
-            allow_proactive=allow_proactive,
+        result = await offload_sync(
+            lambda: adapter.interact(
+                message=req.message,
+                user_id=req.user_id,
+                metadata=meta,
+                use_memory=use_memory,
+                temperature=temperature,
+                llm_client=llm_client,
+                llm_profile=llm_profile,
+                allow_proactive=allow_proactive,
+            )
         )
+    except EventLoopOffloadTimeout as exc:
+        raise HTTPException(status_code=504, detail={"error": "runtime_timeout", "detail": str(exc)}) from exc
+    except ControlDecisionRejected as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "control_plane_rejected", "reason": exc.decision.reason},
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=502,
@@ -435,26 +497,29 @@ async def v1_state(
 ):
     """GET /v1/state — read-only SubjectSelf + block/governance summary."""
     try:
-        full_status = runtime.get_full_status()
-        current = runtime.get_current_state()
-        blocks_summary = full_status.get("layers", {}).get("memory_blocks", {})
-        if not blocks_summary:
-            blocks_summary = runtime.memory_manager.block_stats()
-        attention_state = runtime.memory_manager.get_attention_snapshot()
-        governance = full_status.get("layers", {}).get("governance", {})
-        if not governance:
-            governance = {
-                "stability_metrics": current.get("stability_metrics", {}),
-                "cdg": current.get("cdg"),
-            }
-        return StateResponse(
-            user_id=user_id,
-            session_id=session_id,
-            blocks_summary=blocks_summary,
-            attention_state=attention_state,
-            governance=governance,
-            full_status=full_status,
-        )
+        def _read():
+            full_status = runtime.get_full_status()
+            current = runtime.get_current_state()
+            blocks_summary = full_status.get("layers", {}).get("memory_blocks", {})
+            if not blocks_summary:
+                blocks_summary = runtime.memory_manager.block_stats()
+            attention_state = runtime.memory_manager.get_attention_snapshot()
+            governance = full_status.get("layers", {}).get("governance", {})
+            if not governance:
+                governance = {
+                    "stability_metrics": current.get("stability_metrics", {}),
+                    "cdg": current.get("cdg"),
+                }
+            return StateResponse(
+                user_id=user_id,
+                session_id=session_id,
+                blocks_summary=blocks_summary,
+                attention_state=attention_state,
+                governance=governance,
+                full_status=full_status,
+            )
+
+        return await offload_sync(_read, timeout_s=15.0)
     except Exception as exc:
         raise HTTPException(status_code=500, detail={"error": str(exc)}) from exc
 
@@ -467,7 +532,7 @@ async def v1_status(
 ):
     """GET /v1/status — v1.1 runtime summary (CLI parity)."""
     try:
-        return _build_status_v11(runtime)
+        return await offload_sync(lambda: _build_status_v11(runtime), timeout_s=15.0)
     except Exception as exc:
         raise HTTPException(status_code=500, detail={"error": str(exc)}) from exc
 
@@ -481,10 +546,301 @@ async def v1_health():
 @router.get("/health/ready")
 async def v1_health_ready(runtime: BrainMemoryRuntime = Depends(get_runtime)):
     """GET /v1/health/ready — storage + optional Ollama probes."""
-    payload = deep_health_payload(runtime)
+    payload = await offload_sync(lambda: deep_health_payload(runtime), timeout_s=30.0)
     if payload["status"] == "not_ready":
         raise HTTPException(status_code=503, detail=payload)
     return payload
+
+
+@router.get("/system/ready")
+async def v1_system_ready(mode: str = "default"):
+    """GET /v1/system/ready — stream (?mode=stream), fast snapshot, or full gate."""
+    from api.deps import peek_runtime
+    from api.system_ready import system_ready_payload, system_ready_warming_payload
+    from core.runtime.background_hydrate import schedule_background_hydrate
+
+    runtime = peek_runtime()
+    if runtime is None:
+        return system_ready_warming_payload()
+
+    normalized = mode.strip().lower()
+    if normalized == "fast":
+        schedule_background_hydrate(runtime)
+
+    return system_ready_payload(runtime, mode=mode)
+
+
+@router.get("/system/capability")
+async def v1_system_capability(mode: str = "default"):
+    """GET /v1/system/capability — progressive capability SSOT for UI gates."""
+    from api.deps import peek_runtime
+    from api.system_ready import system_capability_payload, system_ready_warming_payload
+
+    runtime = peek_runtime()
+    if runtime is None:
+        return system_ready_warming_payload()
+    return system_capability_payload(runtime, mode=mode)
+
+
+@router.get("/system/conflict_log")
+async def v1_system_conflict_log(tail: int = 200):
+    """GET /v1/system/conflict_log — tail of runtime-conflict-monitor.log (JSONL)."""
+    from core.runtime.conflict_monitor import conflict_log_path, tail_conflict_log
+
+    return {
+        "path": str(conflict_log_path()),
+        "entries": tail_conflict_log(tail),
+        "count": min(max(1, tail), 1000),
+    }
+
+
+@router.post("/system/conflict_log")
+async def v1_system_conflict_log_client(body: Dict[str, Any]):
+    """POST /v1/system/conflict_log — frontend/client conflict events (best-effort)."""
+    from core.runtime.conflict_monitor import log_client_conflict
+
+    event = str(body.get("event") or "CLIENT_EVENT")
+    level = str(body.get("level") or "warn")
+    fields = {k: v for k, v in body.items() if k not in ("event", "level")}
+    entry = log_client_conflict(event, level=level, **fields)
+    return {"ok": True, "entry": entry}
+
+
+@router.get("/system/ready/stream")
+async def v1_system_ready_stream():
+    """GET /v1/system/ready/stream — SSE progressive ready (Fast-Path v2)."""
+    from api.deps import peek_runtime
+    from core.runtime.streaming_controller import iter_ready_sse
+
+    runtime = peek_runtime()
+
+    async def event_generator():
+        async for chunk in iter_ready_sse(runtime):
+            yield chunk
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-CNexus-Render-Mode": "fast_path_v2",
+        },
+    )
+
+
+@router.post("/system/compute")
+async def v1_system_compute(req: ComputeRequest):
+    """POST /v1/system/compute — UI-driven predictive compute graph (Fast-Path v3)."""
+    from api.deps import peek_runtime
+    from core.runtime.frontend_compute_driver import get_frontend_compute_driver
+
+    runtime = peek_runtime()
+    driver = get_frontend_compute_driver(runtime)
+    return await driver.on_user_event(req.intent, req.payload)
+
+
+@router.post("/chat/fast", response_model=FastChatResponse)
+async def v1_chat_fast(req: FastChatRequest):
+    """POST /v1/chat/fast — LLM fast lane (no system_ready / cluster / inline memory)."""
+    from api.deps import peek_runtime
+    from core.runtime.llm_background_side_effects import schedule_background_side_effects
+    from core.runtime.llm_fast_lane import ChatAPI, LLMFastLane, llm_fast_lane_enabled
+
+    if not llm_fast_lane_enabled():
+        raise HTTPException(status_code=503, detail="LLM fast lane disabled (CNEXUS_LLM_FAST_LANE=0)")
+
+    runtime = peek_runtime()
+    llm_client = None
+    profile = None
+    if _llm_provider and _registry_provider:
+        try:
+            llm_client = _llm_provider()
+            registry = _registry_provider()
+            profile = registry.get_default()
+            if req.model_id:
+                resolved = registry.get(req.model_id)
+                if resolved is not None:
+                    profile = resolved
+        except Exception:
+            pass
+
+    prompt = req.input if req.input else str(req.message or "")
+    lane = LLMFastLane(
+        runtime,
+        llm_client=llm_client,
+        profile=profile,
+        timeout_s=req.timeout_s,
+    )
+    api = ChatAPI(lane)
+    payload = await api.chat(
+        {
+            "input": prompt,
+            "message": prompt,
+            "intent": req.intent or "chat",
+            "delta": req.delta,
+        }
+    )
+    schedule_background_side_effects(runtime, prompt)
+
+    return FastChatResponse(
+        response=str(payload.get("response") or ""),
+        status=str(payload.get("status") or "ok"),
+        path=str(payload.get("path") or "fast_lane_v1"),
+        mode=payload.get("mode"),
+    )
+
+
+@router.post("/intent")
+async def v1_intent(req: IntentRequest):
+    """POST /v1/intent — promptless intent bus (Minimal v4)."""
+    from api.deps import peek_runtime
+    from core.intent.intent_bus_v4 import prompt_minimal_v4_enabled
+    from core.intent.runtime_kernel_v4 import APIv4, get_runtime_kernel_v4
+
+    if not prompt_minimal_v4_enabled():
+        raise HTTPException(status_code=503, detail="Prompt minimal v4 disabled")
+
+    runtime = peek_runtime()
+    llm_client = None
+    profile = None
+    if _llm_provider and _registry_provider:
+        try:
+            llm_client = _llm_provider()
+            registry = _registry_provider()
+            profile = registry.get_default()
+        except Exception:
+            pass
+
+    kernel = get_runtime_kernel_v4(runtime, llm_client=llm_client, profile=profile)
+    api = APIv4(kernel)
+    request_body = {
+        "intent": req.intent,
+        "input": req.input or req.message or "",
+        **req.payload,
+    }
+    return await api.endpoint(request_body)
+
+
+@router.post("/sibt/project")
+async def v1_sibt_project(req: SIBTProjectRequest):
+    """POST /v1/sibt/project — SIBT v1 semantic invariant bilingual projection."""
+    from core.sibt.v1.api import project_sibt, project_sibt_from_layer
+    from core.sibt.v1.compiler import sibt_v1_enabled
+
+    if not sibt_v1_enabled():
+        raise HTTPException(status_code=503, detail="SIBT v1 disabled (CNEXUS_SIBT_V1=0)")
+
+    if req.semantic_layer:
+        return await project_sibt_from_layer(req.semantic_layer)
+    return await project_sibt(
+        req.input,
+        source_lang=req.source_lang,
+        intent=req.intent,
+    )
+
+
+@router.post("/chat/fast/stream")
+async def v1_chat_fast_stream(req: FastChatRequest):
+    """POST /v1/chat/fast/stream — SSE token stream (Fast Lane v2, zero-hop)."""
+    import json
+
+    from api.deps import peek_runtime
+    from core.runtime.llm_fast_lane import llm_fast_lane_enabled
+    from core.runtime.llm_fast_lane_v2 import (
+        llm_fast_lane_v2_enabled,
+        stream_generate_with_side_effects,
+        warm_llm_socket,
+    )
+
+    if not llm_fast_lane_enabled():
+        raise HTTPException(status_code=503, detail="LLM fast lane disabled")
+    if not llm_fast_lane_v2_enabled():
+        raise HTTPException(status_code=503, detail="LLM fast lane v2 disabled")
+
+    runtime = peek_runtime()
+    llm_client = None
+    profile = None
+    if _llm_provider and _registry_provider:
+        try:
+            llm_client = _llm_provider()
+            registry = _registry_provider()
+            profile = registry.get_default()
+            if req.model_id:
+                resolved = registry.get(req.model_id)
+                if resolved is not None:
+                    profile = resolved
+        except Exception:
+            pass
+
+    await warm_llm_socket(runtime, llm_client=llm_client, profile=profile)
+
+    prompt = req.input if req.input else str(req.message or "")
+    queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
+
+    async def send_token(token: str) -> None:
+        await queue.put(token)
+
+    async def event_generator():
+        task = asyncio.create_task(
+            stream_generate_with_side_effects(
+                runtime,
+                prompt,
+                send_token,
+                llm_client=llm_client,
+                profile=profile,
+                timeout_s=req.timeout_s,
+            )
+        )
+        try:
+            while True:
+                if task.done() and queue.empty():
+                    break
+                try:
+                    token = await asyncio.wait_for(queue.get(), timeout=0.05)
+                except asyncio.TimeoutError:
+                    continue
+                if token is None:
+                    break
+                yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+        finally:
+            result = await task
+            yield f"data: {json.dumps({'done': True, **result}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-CNexus-Path": "fast_lane_v2",
+        },
+    )
+
+
+@router.get("/system/linkage_debug")
+async def v1_system_linkage_debug(heal: bool = False, trace: bool = False):
+    """GET /v1/system/linkage_debug — Runtime Linkage Debug Protocol v1 (10s root-cause)."""
+    from api.deps import peek_runtime
+    from core.runtime.linkage_debug import build_linkage_debug_payload
+    from core.runtime.self_healing_runtime import build_self_healing_report, self_healing_enabled
+
+    def _build():
+        payload = build_linkage_debug_payload(app_started=True, peek_runtime=peek_runtime)
+        if trace:
+            from core.runtime.linkage_debug import collect_event_section
+
+            runtime = peek_runtime()
+            base_dir = str(getattr(runtime, "base_dir", "") or "") or None
+            payload["event"] = collect_event_section(base_dir=base_dir, include_trace=True)
+        return payload
+
+    if heal and self_healing_enabled():
+        return await asyncio.to_thread(build_self_healing_report, heal=True)
+
+    if trace:
+        return await asyncio.to_thread(_build)
+    return await offload_sync(_build, timeout_s=10.0)
 
 
 @router.post("/capture", response_model=CaptureResponse, deprecated=True)
@@ -500,14 +856,20 @@ async def v1_capture(
     logger.warning("deprecated endpoint POST /v1/capture invoked; use POST /v1/interact")
     meta = dict(req.metadata or {})
     meta.update({"user_id": req.user_id, "session_id": meta.get("session_id")})
-    result = runtime.capture(
-        req.role,
-        req.content,
-        layer=req.layer,
-        importance=req.importance,
-        return_detail=True,
-        **meta,
-    )
+    try:
+        result = get_legacy_adapter().capture(
+            role=req.role,
+            content=req.content,
+            layer=req.layer,
+            importance=req.importance,
+            meta=meta,
+            return_detail=True,
+        )
+    except ControlDecisionRejected as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "control_plane_rejected", "reason": exc.decision.reason},
+        ) from exc
     if isinstance(result, str):
         if result.startswith("denied"):
             raise HTTPException(status_code=400, detail=result)
@@ -558,7 +920,13 @@ async def v1_memory_recall(
     runtime: BrainMemoryRuntime = Depends(get_runtime),
 ):
     """POST /v1/memory/recall — hierarchical recall debug endpoint."""
-    context = runtime.recall(req.query, top_k=req.top_k)
+    try:
+        context = get_legacy_adapter().memory_recall(query=req.query, top_k=req.top_k)
+    except ControlDecisionRejected as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "control_plane_rejected", "reason": exc.decision.reason},
+        ) from exc
     stats = {}
     if hasattr(runtime, "router") and hasattr(runtime.router, "get_stats"):
         stats = runtime.router.get_stats()
@@ -571,13 +939,16 @@ async def v1_governance_audit(
     runtime: BrainMemoryRuntime = Depends(get_runtime),
 ):
     """GET /v1/governance/audit — CDG trajectory + provenance hint (read-only)."""
-    trajectory = runtime.cdg.trajectory_report(last_n=last_n)
-    audit_path = getattr(runtime.cdg, "audit_log_path", None)
-    return {
-        "trajectory": trajectory,
-        "audit_log_path": str(audit_path) if audit_path else None,
-        "read_only": True,
-    }
+    def _read():
+        trajectory = runtime.cdg.trajectory_report(last_n=last_n)
+        audit_path = getattr(runtime.cdg, "audit_log_path", None)
+        return {
+            "trajectory": trajectory,
+            "audit_log_path": str(audit_path) if audit_path else None,
+            "read_only": True,
+        }
+
+    return await offload_sync(_read, timeout_s=15.0)
 
 
 @router.post("/governance/check", response_model=GovernanceCheckResponse)
@@ -585,7 +956,13 @@ async def v1_governance_check(
     runtime: BrainMemoryRuntime = Depends(get_runtime),
 ):
     """POST /v1/governance/check — run stability governance cycle."""
-    report = runtime.run_governance_cycle()
+    try:
+        report = await offload_sync(lambda: get_legacy_adapter().governance_cycle(), timeout_s=60.0)
+    except ControlDecisionRejected as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "control_plane_rejected", "reason": exc.decision.reason},
+        ) from exc
     score = report.get("stability_metrics", {}).get("overall_stability_score", 1.0)
     governance_pass = float(score or 0.0) >= 0.5
     return GovernanceCheckResponse(
@@ -593,3 +970,29 @@ async def v1_governance_check(
         report=report,
         audit_hint=str(getattr(runtime.cdg, "audit_log_path", "")) or None,
     )
+
+
+@router.get("/mind/overview")
+async def v1_mind_overview(runtime: BrainMemoryRuntime = Depends(get_runtime)):
+    """GET /v1/mind/overview — stable CNexus Product contract (UI-only surface)."""
+    import asyncio
+
+    from core.runtime.boot_protocol import BootPhase, get_boot_phase
+
+    if get_boot_phase() != BootPhase.BOOT_4_READY:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "warming",
+                "boot_phase": get_boot_phase().value,
+                "message": "mind overview unavailable until BOOT_4",
+            },
+        )
+
+    state = await asyncio.to_thread(runtime.get_current_state)
+    overview = state.get("mind_overview")
+    if overview is None:
+        from core.observability.mind_overview import build_mind_overview
+
+        overview = await asyncio.to_thread(build_mind_overview, runtime, state)
+    return overview

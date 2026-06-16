@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 
 if TYPE_CHECKING:
     from core.governance.values_governance import ValuesGovernance
@@ -15,6 +15,7 @@ from core.goal.synthesis import GoalSynthesizer
 from core.personality.intent_engine import GoalStatus
 
 CAPTURE_INTENT_LAYERS = frozenset({"goal", "identity", "episodic", "working"})
+CseMode = Literal["batch", "idle", "realtime"]
 
 
 class GoalManager:
@@ -28,6 +29,7 @@ class GoalManager:
         working_self: Optional["PersistentCognitiveState"] = None,
         belief_engine: Optional["BeliefEngine"] = None,
         values_governance: Optional["ValuesGovernance"] = None,
+        cse_mode: CseMode = "realtime",
     ):
         self.intent = intent_engine
         self.synthesizer = GoalSynthesizer(
@@ -37,6 +39,33 @@ class GoalManager:
             belief_engine=belief_engine,
             values_governance=values_governance,
         )
+        self._cse_mode: CseMode = cse_mode
+        self._pending_batch = 0
+
+    def set_cse_mode(self, mode: str) -> None:
+        normalized = str(mode or "idle").lower()
+        if normalized not in ("batch", "idle", "realtime"):
+            normalized = "idle"
+        self._cse_mode = normalized  # type: ignore[assignment]
+
+    @property
+    def cse_mode(self) -> str:
+        return self._cse_mode
+
+    def flush_synthesis(self) -> None:
+        """Run pending synthesis + projection (batch / idle deferred paths)."""
+        if self._pending_batch <= 0:
+            return
+        self.synthesizer.synthesize()
+        self.synthesizer.project()
+        self._pending_batch = 0
+
+    def _maybe_synthesize_project(self) -> None:
+        self._pending_batch += 1
+        if self._cse_mode == "realtime":
+            self.synthesizer.synthesize()
+            self.synthesizer.project()
+            self._pending_batch = 0
 
     def bind_runtime(
         self,
@@ -71,9 +100,10 @@ class GoalManager:
         self.synthesizer.ingest_capture(
             role, content, layer, importance, context=context
         )
-        self.synthesizer.synthesize()
-        self.synthesizer.project()
-        return self._intent_state_from_canonical()
+        self._maybe_synthesize_project()
+        if self._cse_mode == "realtime":
+            return self._intent_state_from_canonical()
+        return None
 
     def ingest_reflection(
         self,
@@ -89,8 +119,7 @@ class GoalManager:
             goal_id=goal_id,
             alignment_score=alignment_score,
         )
-        self.synthesizer.synthesize()
-        self.synthesizer.project()
+        self._maybe_synthesize_project()
 
     def reconcile_governance(
         self,
@@ -122,7 +151,7 @@ class GoalManager:
         vg = values_governance or self.synthesizer.values
         alignment = None
         if vg is not None:
-            record = self.intent.check_value_alignment(vg)
+            record = self.intent.check_value_alignment(vg, persist=False)
             if record is not None:
                 alignment = record.model_dump(mode="json")
 
@@ -140,6 +169,8 @@ class GoalManager:
             "synthesis_generation": synth.synthesis_generation,
             "conflicts": [c.model_dump(mode="json") for c in synth.conflicts],
             "belief_links": len(synth.belief_links),
+            "cse_mode": self._cse_mode,
+            "pending_batch": self._pending_batch,
         }
 
     def _intent_state_from_canonical(self) -> "IntentState":

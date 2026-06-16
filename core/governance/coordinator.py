@@ -61,6 +61,6 @@ class StabilityCoordinator:
         if self.reflection:
             result["reflection_summary"] = {
                 "active": len(self.reflection.get_active_reflections()),
-                "due_reviews": len(self.reflection.run_due_reviews()),
+                "due_reviews": self.reflection.count_due_reviews(),
             }
         return result

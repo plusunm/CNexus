@@ -60,6 +60,7 @@ class TestGoalBlockIntegrity(unittest.TestCase):
                 "goal",
                 0.88,
             )
+            self.runtime.goal_manager.flush_synthesis()
         self.assertGreaterEqual(len(self.runtime.narrative.narrative.long_term_goals), 1)
 
 

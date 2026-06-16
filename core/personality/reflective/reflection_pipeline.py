@@ -110,6 +110,10 @@ class ReflectionPipeline:
     def get_active_reflections(self) -> List[ReflectionRecord]:
         return self.store.get_active()
 
+    def count_due_reviews(self, now: Optional[datetime] = None) -> int:
+        """Read-only count — never runs review side-effects."""
+        return len(self.scheduler.due_reviews(now))
+
     def run_due_reviews(self) -> List[ReflectionRecord]:
         return self.scheduler.due_reviews()
 

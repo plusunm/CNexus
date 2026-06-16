@@ -6,14 +6,26 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 
+def _resolve_kuzu_db_path(db_path: str) -> Path:
+    """Kuzu expects a database path, not a pre-created empty directory."""
+    resolved = Path(db_path).expanduser().resolve()
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    if resolved.is_dir() and not any(resolved.iterdir()):
+        try:
+            resolved.rmdir()
+        except OSError:
+            pass
+    return resolved
+
+
 def create_cognitive_graph(db_path: str = "memory/kuzu_db"):
     """Create Kuzu graph or fall back to in-memory graph on failure."""
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    resolved = _resolve_kuzu_db_path(db_path)
 
     try:
         import kuzu
 
-        db = kuzu.Database(db_path)
+        db = kuzu.Database(str(resolved))
         conn = kuzu.Connection(db)
         graph = _KuzuCognitiveGraph(db, conn)
         graph._init_schema()

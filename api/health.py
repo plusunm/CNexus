@@ -11,7 +11,7 @@ import httpx
 from core.paths import get_project_root, resolve_memory_dir
 
 
-def shallow_health_payload(*, version: str = "1.0.0-g1") -> Dict[str, Any]:
+def shallow_health_payload(*, version: str = "0.1.0-alpha") -> Dict[str, Any]:
     return {"status": "ok", "service": "cnexus", "version": version}
 
 
@@ -72,7 +72,7 @@ def deep_health_payload(runtime: Any = None) -> Dict[str, Any]:
     ollama_ok = False
     ollama_detail = "skipped"
     try:
-        with httpx.Client(timeout=2.0) as client:
+        with httpx.Client(timeout=2.0, trust_env=False) as client:
             resp = client.get(f"{ollama_host.rstrip('/')}/api/tags")
             ollama_ok = resp.status_code == 200
             ollama_detail = "reachable" if ollama_ok else f"status_{resp.status_code}"

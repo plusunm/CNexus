@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from api.deps import get_runtime
+from api.deps import get_dispatcher
 
 router = APIRouter(prefix="/reflective", tags=["reflective"])
 
@@ -26,7 +26,18 @@ class ReflectionResponse(BaseModel):
 
 @router.post("/reflect", response_model=ReflectionResponse)
 async def trait_reflection(req: ReflectionRequest):
-    record = get_runtime().trait_based_reflection(req.content, req.traits)
+    record = get_dispatcher().reflect_review(content=req.content, traits=req.traits)
+    if isinstance(record, dict):
+        return ReflectionResponse(
+            reflection_id=str(record.get("reflection_id", "")),
+            traits=list(record.get("traits") or []),
+            scene=str(record.get("scene", "")),
+            inner_thought=str(record.get("inner_thought", "")),
+            suggested_methods=list(record.get("suggested_methods") or []),
+            action_steps=list(record.get("action_steps") or []),
+            next_review_date=str(record.get("next_review_date", "")),
+            coherence_score=float(record.get("coherence_score", 0.0)),
+        )
     return ReflectionResponse(
         reflection_id=record.reflection_id,
         traits=record.traits,
@@ -41,11 +52,9 @@ async def trait_reflection(req: ReflectionRequest):
 
 @router.get("/active")
 async def active_reflections():
-    records = get_runtime().reflection_pipeline.get_active_reflections()
-    return {"reflections": [r.model_dump(mode="json") for r in records]}
+    return get_dispatcher().observe_read("active_reflections")
 
 
 @router.get("/due-reviews")
 async def due_reviews():
-    records = get_runtime().reflection_pipeline.run_due_reviews()
-    return {"due": [r.model_dump(mode="json") for r in records]}
+    return get_dispatcher().reflect_due_reviews()

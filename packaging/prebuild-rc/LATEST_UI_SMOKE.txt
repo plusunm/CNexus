@@ -1,0 +1,12 @@
+﻿CNexus UI HEADLESS SMOKE
+Time: 2026-06-13 02:42:35
+
+== Preflight ==
+[FAIL] CNexus.exe not found 鈥?build first: VS Native Tools -> npm run tauri:build
+[FAIL]   or pass -ExePath to installed CNexus.exe
+[PASS] sidecar present (dev bundle)
+[PASS] synced api into runtime-bundle
+[PASS] cleared CNexus + runtime before UI smoke
+[PASS] ui-smoke report path ready: C:\Users\刘\AppData\Local\CNexus\data\ui-smoke-report.json
+
+UI SMOKE SUMMARY: PASS=4 WARN=0 FAIL=2

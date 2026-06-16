@@ -1,5 +1,4 @@
-"""
-GTBS v1.2 — capture() single-path propose-commit pilot.
+"""GTBS v1.2 — capture() single-path propose-commit pilot.
 
 Runtime remains commit authority. CDG is not in the hot path;
 existing CaptureFilter + WriteGate perform proposal validation.
@@ -10,35 +9,22 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from core.governance.gtbs.adapters.capture_adapter import (
+    build_capture_write_intent,
+    infer_capture_target_stores,
+)
 from core.governance.gtbs.transaction_log import GTBSTransactionLog
 from core.governance.gtbs.types import (
     AuditTransactionEvent,
     GovernanceProposal,
     GovernanceTransaction,
-    JustificationSource,
-    OperationType,
-    StateDelta,
     TransactionState,
 )
+from core.governance.gtbs.write_intent_bus import WriteIntentBus
+from core.governance.gtbs.write_funnel import execute_with_tier_a_rollback
 
 GTBS_CAPTURE_VERSION = "1.2.0"
 GTBS_CAPTURE_MODE = "CAPTURE_PILOT"
-
-
-def infer_capture_target_stores(
-    *,
-    role: str,
-    layer: str,
-    importance: float,
-) -> List[str]:
-    stores = ["storage"]
-    if layer in ("goal", "identity", "belief"):
-        stores.append("narrative")
-    if importance > 0.75:
-        stores.append("belief")
-    if role == "user":
-        stores.append("cognitive")
-    return sorted(set(stores))
 
 
 class CaptureMutationBoundary:
@@ -47,8 +33,14 @@ class CaptureMutationBoundary:
     GTBS_VERSION = GTBS_CAPTURE_VERSION
     GTBS_MODE = GTBS_CAPTURE_MODE
 
-    def __init__(self, transaction_log: GTBSTransactionLog) -> None:
+    def __init__(
+        self,
+        transaction_log: GTBSTransactionLog,
+        *,
+        write_intent_bus: Optional[WriteIntentBus] = None,
+    ) -> None:
         self._log = transaction_log
+        self._write_intent_bus = write_intent_bus
 
     def propose_and_commit(
         self,
@@ -61,42 +53,33 @@ class CaptureMutationBoundary:
         meta: Dict[str, Any],
         validate: Callable[[], Tuple[bool, str, float]],
         commit: Callable[[], str],
+        runtime: Any = None,
     ) -> Union[str, Dict[str, Any]]:
+        intent = build_capture_write_intent(
+            role=role,
+            content=content,
+            layer=layer,
+            importance=importance,
+            emotional_weight=emotional_weight,
+            meta=meta,
+            source="capture",
+        )
+        proposal = intent.proposal
         target_stores = infer_capture_target_stores(
             role=role, layer=layer, importance=importance
         )
-        proposal = GovernanceProposal(
-            operation_type=OperationType.INGEST,
-            deltas=[
-                StateDelta(
-                    target_store=store,  # type: ignore[arg-type]
-                    payload={
-                        "role": role,
-                        "layer": layer,
-                        "importance": importance,
-                        "content_preview": content[:120],
-                    },
-                    description=f"capture ingest → {store}",
-                )
-                for store in target_stores
-            ],
-            justification={
-                "source": JustificationSource.INTERACTION.value,
-                "role": role,
-                "layer": layer,
-                "importance": importance,
-            },
-            source="capture",
-            metadata={"gtbs_mode": self.GTBS_MODE, "gtbs_version": self.GTBS_VERSION},
-        )
         txn = GovernanceTransaction(proposal=proposal)
-        self._log.append(
-            AuditTransactionEvent(
-                event_type="proposal",
-                transaction_id=txn.transaction_id,
-                payload=proposal.to_audit_event(),
+
+        if self._write_intent_bus is not None:
+            self._write_intent_bus.emit(intent)
+        else:
+            self._log.append(
+                AuditTransactionEvent(
+                    event_type="proposal",
+                    transaction_id=txn.transaction_id,
+                    payload=proposal.to_audit_event(),
+                )
             )
-        )
 
         allowed, gate_reason, risk = validate()
         if not allowed:
@@ -117,7 +100,18 @@ class CaptureMutationBoundary:
             _audit_event(txn, "approval", {"authority": "runtime", "risk": risk})
         )
 
-        memory_id = commit()
+        tier_b_meta = {"role": role, "layer": layer, "importance": importance}
+
+        if runtime is not None:
+            memory_id = execute_with_tier_a_rollback(
+                runtime,
+                commit,
+                intent_id=intent.intent_id,
+                tier_b_meta=tier_b_meta,
+                record_commit=False,
+            )
+        else:
+            memory_id = commit()
         txn.transition_to(
             TransactionState.COMMITTED,
             payload={
@@ -126,7 +120,15 @@ class CaptureMutationBoundary:
             },
         )
         self._log.append(
-            _audit_event(txn, "commit", {"memory_id": memory_id, "target_stores": target_stores})
+            _audit_event(
+                txn,
+                "commit",
+                {
+                    "memory_id": memory_id,
+                    "target_stores": target_stores,
+                    "tier_b_meta": tier_b_meta,
+                },
+            )
         )
         return memory_id
 

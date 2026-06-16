@@ -1,1 +1,5 @@
-"""CNexus Runtime API — decoupled service for CNexus UI."""
+"""CNexus Runtime HTTP layer (FastAPI)."""
+
+from pkgutil import extend_path
+
+__path__ = extend_path(__path__, __name__)

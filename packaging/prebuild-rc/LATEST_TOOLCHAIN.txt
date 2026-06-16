@@ -1,0 +1,16 @@
+﻿CNexus TOOLCHAIN READINESS
+Time: 2026-06-16 20:55:28
+READY: False
+
+cl:      False  
+link:    False  C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC\14.44.35207\bin\HostX64\x64\link.exe
+Windows SDK dir: True
+rustc:   True  rustc 1.96.0 (ac68faa20 2026-05-25)
+cargo:   True  cargo 1.96.0 (30a34c682 2026-05-25)
+node:    True  v24.15.0
+npm:     True  v11.12.1
+tauri:   True  tauri-cli 2.11.2
+
+Hints:
+  - use VS x64 Native Tools or vcvars64.bat
+  - vcvars64: C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat

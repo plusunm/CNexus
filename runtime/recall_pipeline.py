@@ -27,6 +27,7 @@ class RecallPipeline:
         top_k: Optional[int] = None,
         use_memory: bool = True,
         use_attention: bool = True,
+        mutate_state: bool = False,
     ) -> str:
         if not use_memory or not (query or "").strip():
             self.last_explain = {"query": query, "skipped": True}
@@ -37,6 +38,13 @@ class RecallPipeline:
         rt = self.runtime
         k = top_k or rt.recall_top_k
 
+        get_bus = getattr(rt, "_get_write_intent_bus", None)
+        if callable(get_bus):
+            try:
+                get_bus()
+            except Exception:
+                pass
+
         with timed("recall.total"):
             if rt.runtime_mode == "g2":
                 recall_results: List[Dict[str, Any]] = rt.recall_engine.activate(
@@ -46,6 +54,7 @@ class RecallPipeline:
                 recall_results = rt.router.hybrid_recall(query, top_k=k)
 
             recall_results = self._apply_goal_ranking(recall_results, query)
+            recall_results = self._apply_sigma_ranking(recall_results)
 
             if use_attention:
                 activated = rt.attention.attention_competition(recall_results, query)
@@ -53,10 +62,41 @@ class RecallPipeline:
             else:
                 activated = recall_results[:k]
 
-            rt.state.sync_from_attention(activated if use_attention else [])
-            rt.working_self.sync_to_legacy(rt.state)
-            if use_attention:
-                rt._sync_attention_snapshot()
+            from core.spine.emit import emit_execution_recall
+
+            exec_ev = emit_execution_recall(
+                query=query,
+                top_k=k,
+                mutate_state=mutate_state,
+                result_count=len(recall_results),
+            )
+            recall_event_id = exec_ev.event_id if exec_ev else None
+
+            if mutate_state:
+                from core.governance.gtbs.adapters.recall_adapter import (
+                    maybe_emit_recall_side_effect,
+                )
+                from core.spine.state.track import (
+                    commit_runtime_state_diff,
+                    snapshot_runtime_tier_a,
+                )
+
+                before = snapshot_runtime_tier_a(rt)
+                maybe_emit_recall_side_effect(
+                    rt,
+                    query=query,
+                    top_k=k,
+                    use_attention=use_attention,
+                    activated=activated if use_attention else [],
+                    recall_results=recall_results,
+                )
+                rt.state.sync_from_attention(activated if use_attention else [])
+                rt.working_self.sync_to_legacy(rt.state)
+                if use_attention:
+                    rt._sync_attention_snapshot()
+                commit_runtime_state_diff(
+                    rt, before, label="recall_mutate_state", triggered_by=recall_event_id
+                )
 
             context = rt.context_engine.assemble(
                 query, recall_results, memory_manager=rt.memory_manager
@@ -87,6 +127,7 @@ class RecallPipeline:
         self.last_explain = {
             "query": query[:120],
             "use_attention": use_attention,
+            "mutate_state": mutate_state,
             "top_k": k,
             "candidate_count": len(recall_results),
             "top_labels": [
@@ -140,6 +181,43 @@ class RecallPipeline:
             )
             item["_goal_boost"] = round(boost, 4)
             item["_final_score"] = round(float(base) * (1.0 + boost), 5)
+
+        recall_results.sort(
+            key=lambda x: float(x.get("_final_score") or x.get("_cognitive_score") or 0.0),
+            reverse=True,
+        )
+        return recall_results
+
+    def _apply_sigma_ranking(self, recall_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Layer 4 — boost blocks with persisted Σ.M metadata (importance_snapshot)."""
+        mm = getattr(self.runtime, "memory_manager", None)
+        if mm is None:
+            return recall_results
+        blocks = mm.blocks.list_blocks(active_only=True)
+        sigma_importance: Dict[str, float] = {}
+        for block in blocks:
+            meta = block.metadata or {}
+            if meta.get("sigma_slot") != "Σ.M":
+                continue
+            snap = meta.get("block_importance_snapshot", block.importance)
+            sigma_importance[block.label] = float(snap)
+
+        if not sigma_importance:
+            return recall_results
+
+        for item in recall_results:
+            label = item.get("_label") or item.get("label") or item.get("_layer") or ""
+            snap = sigma_importance.get(label)
+            if snap is None:
+                continue
+            base = (
+                item.get("_final_score")
+                or item.get("_cognitive_score")
+                or item.get("_hybrid_score")
+                or 0.5
+            )
+            item["_sigma_boost"] = round(snap * 0.15, 4)
+            item["_final_score"] = round(float(base) * (1.0 + snap * 0.15), 5)
 
         recall_results.sort(
             key=lambda x: float(x.get("_final_score") or x.get("_cognitive_score") or 0.0),

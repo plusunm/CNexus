@@ -23,7 +23,17 @@ class MultiLLMAdapter:
     ):
         self.runtime = runtime
         self.registry = registry
-        self.llm = llm_client or LLMClient()
+        self.llm = llm_client or getattr(runtime, "llm_client", None)
+        if self.llm is None:
+            self.llm = LLMClient()
+        if self.llm._scheduler is None and hasattr(runtime, "inference_scheduler"):
+            self.llm.bind_scheduler(runtime.inference_scheduler)
+        elif self.llm._plane is None and hasattr(runtime, "execution_plane"):
+            self.llm.bind_plane(runtime.execution_plane)
+        if self.llm._scheduler is None and self.llm._plane is None:
+            raise RuntimeError(
+                "MultiLLMAdapter requires runtime.llm_client or a bound InferenceScheduler/ExecutionPlane"
+            )
 
     def resolve_profile(self, model: str) -> ModelProfile:
         if model in CNEXUS_MODEL_IDS:

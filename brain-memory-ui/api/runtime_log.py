@@ -63,6 +63,14 @@ def unsubscribe(q: asyncio.Queue) -> None:
 
 
 def _broadcast(entry: Dict[str, Any]) -> None:
+    """Fan-out only from the running event loop — never from worker threads."""
+    try:
+        import asyncio
+
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
     dead = []
     for q in list(_subscribers):
         try:

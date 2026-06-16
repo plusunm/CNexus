@@ -83,7 +83,7 @@ class TestOpenAIHandler(unittest.IsolatedAsyncioTestCase):
             request,
             runtime=runtime,
             registry=registry,
-            llm_client=LLMClient(),
+            llm_client=runtime.llm_client,
             skills=skills,
         )
         self.assertEqual(response.object, "chat.completion")
