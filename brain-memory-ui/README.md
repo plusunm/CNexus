@@ -3,6 +3,20 @@
 **CNexus Product** — 可独立部署的 Mind UI（Demo 离线 + 可选 Runtime 绑定）。  
 **CNexus Runtime** — FastAPI + `brain_memory` 认知内核（可单独运行）。
 
+## 产品界面
+
+### CNexus Debugger — Event Spine / 控制层 Inspector
+
+认知工作台调试视图：Spine 事件流、因果图、Write Intent、Control Layer 决策（ALLOW / WARN / REJECT）。
+
+![CNexus Debugger — Event Spine 与 Control Layer Inspector](../docs/images/cnexus-debugger-spine-inspector.png)
+
+### 桌面悬浮窗 — 记忆 / 因子网络 / 算力观测
+
+Runtime 在线时的悬浮条：记忆面板、因子词网络、Token 总量与 dispatch 轨迹。
+
+![CNexus 悬浮窗 — 记忆面板与算力观测](../docs/images/cnexus-float-memory-panel.png)
+
 ## 架构
 
 ```text

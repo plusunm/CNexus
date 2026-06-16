@@ -60,6 +60,22 @@ CNexus represents a shift from:
 
 ---
 
+## Product Preview / 产品界面
+
+### CNexus Debugger — Event Spine & Control Inspector
+
+Observability console for traces, causal graph, write intents, and control-layer decisions (ALLOW / WARN / REJECT).
+
+![CNexus Debugger — Event Spine and Control Layer Inspector](docs/images/cnexus-debugger-spine-inspector.png)
+
+### Desktop Float — Memory & Token Observatory
+
+Floating bar with factor graph, memory panel, and live token / dispatch traces while Runtime is online.
+
+![CNexus Float — Memory panel and token observatory](docs/images/cnexus-float-memory-panel.png)
+
+---
+
 ## Core Architecture
 
 ```text
