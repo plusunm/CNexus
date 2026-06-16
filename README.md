@@ -3,6 +3,10 @@
 **Observational Cognition Platform for Long-Lived AI Agents**  
 **Stability-First Continuity · Multi-Stream Semantic Inference**
 
+![CNexus Debugger — Event Spine and Control Layer Inspector](docs/images/cnexus-debugger-spine-inspector.png)
+
+![CNexus Float — Memory panel and token observatory](docs/images/cnexus-float-memory-panel.png)
+
 ---
 
 CNexus is a cognitive runtime and observational cognition platform designed to give stateless LLM agents persistent identity, long-term memory, narrative continuity, and governed personality evolution — with a read-only L2 / L2.5 semantic stack over immutable observability streams.
@@ -57,22 +61,6 @@ CNexus represents a shift from:
 * persistent cognitive existence with observational field cognition.
 
 **Repository:** [github.com/plusunm/CNexus](https://github.com/plusunm/CNexus)
-
----
-
-## Product Preview / 产品界面
-
-### CNexus Debugger — Event Spine & Control Inspector
-
-Observability console for traces, causal graph, write intents, and control-layer decisions (ALLOW / WARN / REJECT).
-
-![CNexus Debugger — Event Spine and Control Layer Inspector](docs/images/cnexus-debugger-spine-inspector.png)
-
-### Desktop Float — Memory & Token Observatory
-
-Floating bar with factor graph, memory panel, and live token / dispatch traces while Runtime is online.
-
-![CNexus Float — Memory panel and token observatory](docs/images/cnexus-float-memory-panel.png)
 
 ---
 
