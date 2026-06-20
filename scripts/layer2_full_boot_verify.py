@@ -370,6 +370,16 @@ def _stop_api(run: VerifyRun) -> None:
 
 def _render_report(run: VerifyRun) -> str:
     template = REPORT_TEMPLATE.read_text(encoding="utf-8")
+    b1_b8 = [next((r for r in run.results if r.gate_id == f"B{i}"), None) for i in range(1, 9)]
+    b9_pass = all(r.passed for r in b1_b8 if r is not None) and len([r for r in b1_b8 if r]) >= 8
+    if not any(r.gate_id == "B9" for r in run.results):
+        _gate(
+            run,
+            "B9",
+            "Automated summary (B1–B8)",
+            b9_pass,
+            "all automated gates green" if b9_pass else "one or more gates failed",
+        )
     by_id = {r.gate_id: r for r in run.results}
 
     def status(gate_id: str) -> str:
@@ -381,11 +391,6 @@ def _render_report(run: VerifyRun) -> str:
     def detail(gate_id: str) -> str:
         r = by_id.get(gate_id)
         return r.detail if r else "not run"
-
-    b1_b8 = [by_id.get(f"B{i}") for i in range(1, 9)]
-    b9_pass = all(r.passed for r in b1_b8 if r is not None) and len([r for r in b1_b8 if r]) >= 8
-    if "B9" not in by_id:
-        _gate(run, "B9", "Automated summary (B1–B8)", b9_pass, "all automated gates green" if b9_pass else "one or more gates failed")
 
     overall = "PASS" if run.all_passed else "FAIL"
     layer2 = "✅ COMPLETE (pending B10 manual)" if b9_pass else "❌ BLOCKED"
