@@ -125,11 +125,25 @@ class RecallPipeline:
                 f"• {rt.narrative.get_current_narrative_summary()}"
             )
             recent_section = f"{recent_narrative_block}\n\n" if recent_narrative_block else ""
+            reasoning_section = ""
+            reasoning_trace_payload: Optional[Dict[str, Any]] = None
+            from core.runtime.conscious_flow.reasoning_trace import (
+                format_reasoning_prompt_block,
+                reasoning_trace_enabled,
+                resolve_reasoning_trace_for_query,
+            )
+
+            if reasoning_trace_enabled():
+                trace = resolve_reasoning_trace_for_query(rt, query, run_if_missing=True)
+                if trace is not None:
+                    reasoning_section = f"{format_reasoning_prompt_block(trace)}\n\n"
+                    reasoning_trace_payload = trace.to_dict()
             full = (
                 f"{identity_anchor}\n\n{self_block}\n\n{state_block}\n\n"
                 f"{emotion_context}\n\n{intent_context}\n\n{reflective_context}\n\n"
                 f"{values_context}\n\n"
                 f"{recent_section}"
+                f"{reasoning_section}"
                 f"{identity_block}\n\n{context}"
             )
 
@@ -155,6 +169,8 @@ class RecallPipeline:
             "context_chars": len(full),
             "recent_narrative_chars": len(recent_narrative_block),
             "recent_narrative_present": bool(recent_narrative_block),
+            "reasoning_trace_present": bool(reasoning_trace_payload),
+            "reasoning_trace": reasoning_trace_payload,
         }
         get_metrics().set_gauge("recall.context_chars", float(len(full)))
         return full

@@ -305,12 +305,17 @@ def _background_simulation(
         recent = load_recent_narrative_prompt_block(base_dir)
 
         engine = SimulationEngine(budget=budget)
-        engine.run_filtered_simulation(
+        report = engine.run_filtered_simulation(
             user_query=user_query,
             recent_narrative=recent,
             core_beliefs=beliefs,
             baseline_coherence=coherence,
             base_dir=base_dir,
         )
+        from core.runtime.conscious_flow.reasoning_trace import build_reasoning_trace_from_report
+
+        trace = build_reasoning_trace_from_report(report, query_preview=user_query)
+        if trace is not None:
+            setattr(runtime, "_last_reasoning_trace", trace)
     except Exception as exc:
         logger.debug("background simulation failed: %s", exc)

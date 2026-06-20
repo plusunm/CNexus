@@ -185,8 +185,30 @@ async def stream_generate_with_side_effects(
     llm_client: Optional[Any] = None,
     profile: Optional[Any] = None,
     timeout_s: Optional[float] = None,
+    emit_reasoning_meta: bool = True,
 ) -> Dict[str, Any]:
+    from core.runtime.conscious_flow.reasoning_trace import (
+        reasoning_trace_enabled,
+        resolve_reasoning_trace_for_query,
+    )
+    from core.runtime.conscious_flow.chunked_response import ChunkedResponseMeta
+
+    reasoning_meta: Optional[Dict[str, Any]] = None
+    if emit_reasoning_meta and runtime is not None and reasoning_trace_enabled():
+        trace = resolve_reasoning_trace_for_query(runtime, prompt, run_if_missing=True)
+        if trace is not None:
+            reasoning_meta = ChunkedResponseMeta(
+                phase="reasoning",
+                reasoning_trace=trace.to_dict(),
+            ).to_dict()
+            preview = trace.summary[:160]
+            if preview:
+                await on_token(f"[thinking] {preview}\n\n")
+
     lane = LLMFastLaneV2(runtime, llm_client=llm_client, profile=profile, timeout_s=timeout_s)
     result = await lane.stream_generate(prompt, on_token, timeout_s=timeout_s)
+    if reasoning_meta is not None:
+        result["reasoning_trace"] = reasoning_meta.get("reasoning_trace")
+        result["stream_phases"] = ["reasoning", "decision"]
     schedule_background_side_effects(runtime, prompt)
     return result
