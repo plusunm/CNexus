@@ -216,6 +216,36 @@ class SimulationEngine:
         traj = self.run_simulation(**kwargs)
         return traj.candidates
 
+    def run_filtered_simulation(
+        self,
+        *,
+        evaluator: Optional[Any] = None,
+        llm_reflect: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> Any:
+        """L4-2 — simulate then evaluate/prune branches (Σ.T only)."""
+        from core.runtime.conscious_flow.trajectory_evaluator import (
+            TrajectoryEvaluator,
+            evaluate_trajectories,
+        )
+
+        traj = self.run_simulation(**kwargs)
+        ev = evaluator or TrajectoryEvaluator()
+        return evaluate_trajectories(
+            traj.candidates,
+            trace_id=traj.trace_id,
+            recent_narrative=str(kwargs.get("recent_narrative") or ""),
+            core_beliefs=kwargs.get("core_beliefs"),
+            baseline_coherence=float(kwargs.get("baseline_coherence") or traj.baseline_coherence),
+            base_dir=kwargs.get("base_dir"),
+            llm_reflect=llm_reflect,
+            evaluator=ev,
+        )
+
+    def run_to_filtered_candidates(self, **kwargs: Any) -> List[CandidateResponse]:
+        report = self.run_filtered_simulation(**kwargs)
+        return report.candidates
+
     def _default_simulator(
         self,
         *,
@@ -274,7 +304,8 @@ def _background_simulation(
 
         recent = load_recent_narrative_prompt_block(base_dir)
 
-        SimulationEngine(budget=budget).run_simulation(
+        engine = SimulationEngine(budget=budget)
+        engine.run_filtered_simulation(
             user_query=user_query,
             recent_narrative=recent,
             core_beliefs=beliefs,
