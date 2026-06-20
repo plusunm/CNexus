@@ -137,6 +137,12 @@ class CognitiveWarmupAdapter:
 
         result = self.scheduler.run_tick()
         set_l3_scheduler_status(self.l3_status())
+        try:
+            from core.governance.cdg.stability_monitor import run_stability_monitor_tick
+
+            run_stability_monitor_tick(self.runtime, self.scheduler)
+        except Exception:
+            pass
         if result.queue_empty:
             self.done = True
             mark_cognitive_warmup_done()

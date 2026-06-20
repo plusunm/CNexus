@@ -31,6 +31,7 @@ class L3TaskKind(str, Enum):
     LLM_DEFERRED = "llm_deferred"
     STORAGE_BATCH = "storage_batch"
     WARMUP = "warmup"
+    ATTRACTOR_RECALIBRATION = "attractor_recalibration"
 
 
 @dataclass

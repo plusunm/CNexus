@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 COGNIZE_INTENTS = frozenset({"chat", "observe", "reflect_review", "capture_cognition"})
 DECIDE_INTENTS = frozenset({"control", "cdg_apply", "governance_validate", "reflect_due_reviews"})
+MAX_ATTRACTOR_COHERENCE_STEP = 0.1
 
 
 def _touch(model: Any, field: str, value: Any) -> None:
@@ -31,6 +32,65 @@ def apply_cognize_step(store: Any, *, user_input: str = "", response: str = "") 
     _touch(model, "future_projection", projection)
     store.save_domain("cognize")
     return {"step": "COGNIZE", "updated_at": now}
+
+
+def apply_attractor_recalibration_step(
+    store: Any,
+    *,
+    proposed_coherence: Optional[float] = None,
+    coherence_delta: Optional[float] = None,
+    relational_patch: Optional[Dict[str, Any]] = None,
+    projection_patch: Optional[Dict[str, Any]] = None,
+    max_step: float = MAX_ATTRACTOR_COHERENCE_STEP,
+) -> Dict[str, Any]:
+    """Attractor recalibration — Σ.S (cognize) only; hard |Δcoherence_score| ≤ max_step."""
+    from core.personality.attractor.delta_constraint import clamp_scalar_step
+
+    model = store.model
+    now = datetime.now(timezone.utc).isoformat()
+    current = float(getattr(model, "coherence_score", 0.85) or 0.85)
+
+    if proposed_coherence is not None:
+        target = float(proposed_coherence)
+    elif coherence_delta is not None:
+        target = current + float(coherence_delta)
+    else:
+        target = current
+
+    new_coherence, applied_delta = clamp_scalar_step(current, target, max_step=max_step)
+    _touch(model, "coherence_score", round(new_coherence, 4))
+
+    rel = dict(getattr(model, "relational_models", None) or {})
+    rel.setdefault("_attractor", {})
+    rel["_attractor"]["last_recalibration_at"] = now
+    if relational_patch:
+        for key, value in relational_patch.items():
+            if isinstance(value, dict) and isinstance(rel.get(key), dict):
+                merged = dict(rel[key])
+                merged.update(value)
+                rel[key] = merged
+            else:
+                rel[key] = value
+    _touch(model, "relational_models", rel)
+
+    projection = dict(getattr(model, "future_projection", None) or {})
+    if projection_patch:
+        projection.update(projection_patch)
+    projection["attractor_state"] = {
+        "updated_at": now,
+        "coherence_delta_applied": applied_delta,
+        "source": "attractor_recalibration",
+    }
+    _touch(model, "future_projection", projection)
+
+    store.save_domain("cognize")
+    return {
+        "step": "ATTRACTOR_RECALIBRATION",
+        "coherence_before": current,
+        "coherence_after": new_coherence,
+        "coherence_delta_applied": applied_delta,
+        "updated_at": now,
+    }
 
 
 def apply_decide_step(store: Any, *, intent_type: str = "") -> Dict[str, Any]:

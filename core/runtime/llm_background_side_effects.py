@@ -19,6 +19,7 @@ def _run_side_effects(runtime: Optional[Any], prompt: str) -> None:
         _memory_recall_async(runtime, prompt)
         _embedding_update_hot(runtime)
         _crdt_merge_lazy()
+        _attractor_stability_probe(runtime)
     except Exception as exc:
         logger.debug("background_side_effects failed: %s", exc)
 
@@ -63,5 +64,14 @@ def _crdt_merge_lazy() -> None:
         from core.kernel.v5.crdt_memory import get_crdt_memory
 
         get_crdt_memory().stats()
+    except Exception:
+        pass
+
+
+def _attractor_stability_probe(runtime: Optional[Any]) -> None:
+    try:
+        from core.runtime.attractor_background import schedule_post_interaction_stability_check
+
+        schedule_post_interaction_stability_check(runtime)
     except Exception:
         pass
