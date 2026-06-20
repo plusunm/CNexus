@@ -306,7 +306,10 @@ export const useMindStore = create<MindStoreState>((set, get) => {
       invalidateOverviewCache();
       set({
         runtimeState,
-        mindOverview: runtimeState.mind_overview ?? get().mindOverview,
+        mindOverview:
+          runtimeState.mind_overview !== null && runtimeState.mind_overview !== undefined
+            ? runtimeState.mind_overview
+            : get().mindOverview,
       });
     },
 
@@ -437,22 +440,50 @@ export const useMindStore = create<MindStoreState>((set, get) => {
             runtimeL3Status: parseL3Status(raw.boot as Record<string, unknown> | undefined),
           });
         } catch {
+          // capability failed — secondary SSOT read, then degraded (not offline)
+          try {
+            const ready = await cnexusProductApi.systemReadyFull();
+            applyCapabilitySnapshot(parseCapabilityPayload(ready as Record<string, unknown>));
+            set({
+              runtimeL3Status: parseL3Status(ready.boot as Record<string, unknown> | undefined),
+            });
+            void reportRuntimeConflict(
+              "PROBE_DEGRADED",
+              { health: "ok", capability: "fail", recovered: "system_ready" },
+              "warn",
+            );
+            return;
+          } catch {
+            /* fall through */
+          }
           try {
             const health = await cnexusProductApi.health();
             if (health.status === "ok") {
+              const prev = get();
+              const apiUp = Boolean(
+                (health as { runtime_pointer?: boolean }).runtime_pointer ?? true,
+              );
               set({
                 runtimeReachable: true,
-                runtimeOperationalReady: false,
-                runtimeReady: false,
-                runtimeCapabilities: EMPTY_CAPABILITIES,
+                runtimeOperationalReady: prev.runtimeOperationalReady,
+                runtimeReady: prev.runtimeReady,
+                runtimeCognitiveStatus: "warming",
+                runtimeCapabilities: prev.runtimeCapabilities.api
+                  ? prev.runtimeCapabilities
+                  : { ...EMPTY_CAPABILITIES, api: apiUp },
+                runtimeBootReason: "capability_fail_health_ok",
               });
-              markRuntimeReachabilityBooting(get().runtimeBootPhase);
+              markRuntimeReachabilityBooting(prev.runtimeBootPhase);
               void reportRuntimeConflict("PROBE_DEGRADED", { health: "ok", capability: "fail" }, "warn");
               return;
             }
           } catch {
-            /* control plane may be blocked while runtime warms */
+            // health also failed — runtime is offline
           }
+          set({
+            runtimeBootReason: "capability_fail_health_fail",
+            runtimeBootPhase: get().runtimeBootPhase ?? "ERROR",
+          });
           markRuntimeProbeFailed();
           void reportRuntimeConflict("PROBE_OFFLINE", {}, "error");
         }

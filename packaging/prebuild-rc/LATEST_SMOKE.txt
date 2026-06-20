@@ -1,28 +1,27 @@
 ﻿CNexus RUNTIME SMOKE GATE
-Time: 2026-06-13 02:47:37
+Time: 2026-06-20 08:32:56
 
 == Preflight ==
 [PASS] sidecar exe present
 [PASS] runtime-bundle present
 [PASS] synced api/*.py into runtime-bundle for smoke
-[WARN] sidecar PE subsystem=Console 鈥?release build should use windows_subsystem
+[PASS] sidecar PE subsystem=Windows GUI (no console)
 [PASS] port 8000 cleared before smoke
 [PASS] memory data dirs ensured under C:\Users\刘\AppData\Local\CNexus\data
 
 == Live runtime boot ==
-[PASS] spawned cnexus-runtime pid=15372 (WindowStyle Hidden)
-[PASS] /v1/system/ready in 26212ms boot_id=43cf1188f9be4f4abd8273b238ee8b79
-[PASS] token_valid=true
+[PASS] spawned cnexus-runtime pid=34536 (WindowStyle Hidden)
+last /v1/system/ready error: status=operational ws=alive memory=ready
+[FAIL] /v1/system/ready not ready within 60s
 [PASS] /v1/health ok
-[PASS] WS /ws/state first frame in 55ms
-[WARN] ready slow (26212ms) 鈥?investigate AV/disk
+[FAIL] ready timing exceeded budget
 
 == Shutdown / orphan probe ==
-[PASS] sent taskkill /T to sidecar pid=15372 (simulates UI stop_runtime_sidecar)
-[PASS] runtime tree exited + port 8000 released in 1144ms
-[PASS] cleanup complete (total 32681ms)
+[PASS] sent taskkill /T to sidecar pid=34536 (simulates UI stop_runtime_sidecar)
+[PASS] runtime tree exited + port 8000 released in 1691ms
+[PASS] cleanup complete (total 70173ms)
 
-metrics: ready_ms=26212 ws_ms=55 shutdown_ms=1144 total_ms=32681
+metrics: ready_ms=60026 ws_ms= shutdown_ms=1691 total_ms=70173
 ========================================
-SMOKE SUMMARY: PASS=13 WARN=2 FAIL=0
+SMOKE SUMMARY: PASS=11 WARN=0 FAIL=2
 ========================================

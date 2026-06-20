@@ -24,6 +24,9 @@ jobs:
       - name: Pytest suite
         run: python -m pytest tests/ -q --tb=line -x
 
+      - name: Security harness tests
+        run: python -m pytest tests/security -q --tb=line
+
       - name: Benchmark suite
         run: python scripts/run_benchmarks.py
 

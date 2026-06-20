@@ -35,9 +35,15 @@ type Options = {
   /** Float: pick files first, import on confirm */
   deferFileCapture?: boolean;
   excludeDocImport?: boolean;
+  /** Open overview debugger after successful import (main window only). */
+  navigateAfterImport?: boolean;
 };
 
-export function useMemoryImport({ deferFileCapture = false, excludeDocImport = false }: Options = {}) {
+export function useMemoryImport({
+  deferFileCapture = false,
+  excludeDocImport = false,
+  navigateAfterImport = true,
+}: Options = {}) {
   const { overview, isDemo, isWarming, isLive, isFallback, canWriteMemory } = useMindOverview();
   const afterMemoryCapture = useMindStore((s) => s.afterMemoryCapture);
   const { navigateDebuggerAfterImport } = useShellNavigation();
@@ -136,7 +142,7 @@ export function useMemoryImport({ deferFileCapture = false, excludeDocImport = f
       const traits = Array.isArray(result.cognition?.traits)
         ? (result.cognition?.traits as string[])
         : undefined;
-      await finishImportSuccess(label, payload, traits);
+      await finishImportSuccess(label, payload, traits, navigateAfterImport);
       return true;
     } catch (err) {
       setImportNote(formatImportError(err, "导入失败 — Runtime 未连接或拒绝写入"));
@@ -179,7 +185,7 @@ export function useMemoryImport({ deferFileCapture = false, excludeDocImport = f
         }
       }
     }
-    if (ok > 0) navigateDebuggerAfterImport();
+    if (ok > 0 && navigateAfterImport) navigateDebuggerAfterImport();
     if (ok > 0 && lastKeywords?.length) {
       const hint = formatIngestKeywords(lastKeywords);
       if (hint) setImportNote((prev) => (prev ? `${prev} · 关键词：${hint}` : `关键词：${hint}`));
@@ -257,7 +263,9 @@ export function useMemoryImport({ deferFileCapture = false, excludeDocImport = f
         if (success) {
           await notifyDingTalk("文本片段");
           setTextContent("");
-          setImportNote("文本已导入 — 已跳转因果调试视图");
+          setImportNote(
+            navigateAfterImport ? "文本已导入 — 已跳转因果调试视图" : "文本已导入",
+          );
         }
         return;
       }
@@ -273,7 +281,9 @@ export function useMemoryImport({ deferFileCapture = false, excludeDocImport = f
         if (success) {
           await notifyDingTalk(url);
           setUrlValue("");
-          setImportNote("链接已写入记忆 — 已跳转因果调试视图");
+          setImportNote(
+            navigateAfterImport ? "链接已写入记忆 — 已跳转因果调试视图" : "链接已写入记忆",
+          );
         }
         return;
       }

@@ -1,4 +1,4 @@
-# Bundle CNexus Runtime for desktop installer (process 2 of 2).
+﻿# Bundle CNexus Runtime for desktop installer (process 2 of 2).
 # Output: brain-memory-ui/frontend/src-tauri/runtime-bundle/
 # Requires: Python 3.11+, pip, network (first run downloads embeddable Python)
 
@@ -422,13 +422,30 @@ Invoke-PipDirect -PipArgs @('wheel', '.', '--no-deps', '-w', $WheelDir) | Out-Ho
 $Wheel = Get-ChildItem "$WheelDir/*.whl" | Select-Object -First 1
 if (-not $Wheel) { throw "Wheel build failed" }
 
-Write-Host "-> Installing runtime dependencies to site-packages..."
-$pipInstallArgs = @('install')
-if ($refreshDeps) { $pipInstallArgs += '--upgrade' }
-$pipInstallArgs += @('-r', 'requirements.txt', '-r', 'brain-memory-ui/api/requirements.txt', '--target', $SitePackages)
+# === Step B: Install requirements with forced refresh ===
+Write-Host "-> Installing requirements to site-packages (forced refresh)..."
+$pipInstallArgs = @(
+    'install',
+    '--upgrade',
+    '--force-reinstall',
+    '--no-cache-dir',
+    '-r', 'requirements.txt',
+    '-r', 'brain-memory-ui/api/requirements.txt',
+    '--target', $SitePackages
+)
 Invoke-PipDirect -PipArgs $pipInstallArgs | Out-Host
-$wheelInstallArgs = @('install', '--no-deps', $Wheel.FullName, '--target', $SitePackages)
-if ($refreshDeps) { $wheelInstallArgs = @('install', '--no-deps', '--upgrade', $Wheel.FullName, '--target', $SitePackages) }
+
+# === Step C: Install project wheel with forced refresh ===
+Write-Host "-> Installing project wheel to site-packages..."
+$wheelInstallArgs = @(
+    'install',
+    '--upgrade',
+    '--force-reinstall',
+    '--no-deps',
+    '--no-cache-dir',
+    $Wheel.FullName,
+    '--target', $SitePackages
+)
 Invoke-PipDirect -PipArgs $wheelInstallArgs | Out-Host
 if (Test-Path "$SitePackages/api") {
     Remove-Item "$SitePackages/api" -Recurse -Force

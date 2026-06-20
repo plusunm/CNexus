@@ -25,7 +25,9 @@ def main() -> int:
         from brain_memory import create_runtime
 
         runtime = create_runtime(base_dir=args.base_dir, config_path="config/default.json")
-        runtime_state = runtime.get_current_state()
+        from core.control_plane.dispatch import AuthorityDispatcher
+
+        runtime_state = AuthorityDispatcher(runtime).observe_read("governance_state")
     except Exception:
         runtime_state = None
 

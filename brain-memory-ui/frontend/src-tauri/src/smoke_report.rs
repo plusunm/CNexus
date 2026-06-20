@@ -226,6 +226,7 @@ fn schedule_smoke_exit(app: AppHandle) {
 
         thread::sleep(Duration::from_millis(1200));
 
+        crate::exit_trace::note_exit_intent("smoke_auto_exit", None);
         runtime_sidecar::stop_runtime_sidecar_fast(&app);
 
         app.exit(0);

@@ -1,9 +1,10 @@
-"""Shared WebSocket routes — /ws/interact (v1.1 spec)."""
+﻿"""Shared WebSocket routes 鈥?/ws/interact (v1.1 spec)."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -46,17 +47,32 @@ def configure_ws_dependencies(
 
 @router.websocket("/ws/interact")
 async def interact_stream(websocket: WebSocket):
-    """v1.1 interact stream: attention update → done (full InteractResponse)."""
+    """v1.1 interact stream: attention update 鈫?done (full InteractResponse)."""
     if _runtime_provider is None:
         await websocket.close(code=1011)
         return
 
     await websocket.accept()
     runtime = _runtime_provider()
+    last_ping = time.time()
 
     try:
         while True:
-            raw = await websocket.receive_text()
+            now = time.time()
+            if now - last_ping > 25:
+                try:
+                    await asyncio.wait_for(
+                        websocket.send_text(json.dumps({'type': 'ping'})),
+                        timeout=5.0,
+                    )
+                    last_ping = now
+                except (asyncio.TimeoutError, RuntimeError):
+                    break
+
+            try:
+                raw = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                continue
             req_data = json.loads(raw)
             req = InteractRequest.model_validate(req_data)
             options = req.options or {}
@@ -110,9 +126,31 @@ async def interact_stream(websocket: WebSocket):
                 )
 
             try:
-                result = await offload_sync(_interact)
+                result = await asyncio.wait_for(
+                    offload_sync(_interact),
+                    timeout=90.0
+                )
+            except asyncio.TimeoutError:
+                await websocket.send_text(
+                    json.dumps({
+                        "type": "error",
+                        "error": "runtime_timeout",
+                        "message": "思考时间较长（90秒超时），建议重试或简化问题",
+                        "retry": True,
+                        "retry_after": 5,
+                    }, ensure_ascii=False)
+                )
+                continue
             except EventLoopOffloadTimeout:
-                await websocket.send_text(json.dumps({"type": "error", "error": "runtime_timeout"}))
+                await websocket.send_text(
+                    json.dumps({
+                        "type": "error",
+                        "error": "runtime_timeout",
+                        "message": "内部调度超时，请重试",
+                        "retry": True,
+                        "retry_after": 5,
+                    }, ensure_ascii=False)
+                )
                 continue
             response = _map_interact_response(result, req, runtime)
             payload = response.model_dump()
@@ -131,4 +169,21 @@ async def interact_stream(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as exc:
-        await websocket.send_text(json.dumps({"type": "error", "error": str(exc)}))
+        import logging
+        logging.getLogger(__name__).warning(f"WebSocket unexpected error: {exc}")
+        try:
+            await websocket.send_text(
+                json.dumps({
+                    "type": "error",
+                    "error": "runtime_error",
+                    "message": "内部处理异常，请重试",
+                    "details": str(exc)[:200],
+                }, ensure_ascii=False)
+            )
+        except Exception:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass

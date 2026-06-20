@@ -175,6 +175,9 @@ fn take_runtime_pid(app: &AppHandle) -> u32 {
 /// Instant quit path — spawn taskkill without waiting for PowerShell.
 pub fn stop_runtime_sidecar_fast(app: &AppHandle) {
     let pid = take_runtime_pid(app);
+    if pid > 0 {
+        crate::boot_trace::trace(&format!("sidecar: stop_runtime_sidecar_fast pid={pid}"));
+    }
     stop_runtime_processes_fast(pid);
 }
 
@@ -189,7 +192,11 @@ pub fn stop_runtime_sidecar(app: &AppHandle) {
 
 pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
     match event {
-        RunEvent::Exit | RunEvent::ExitRequested { .. } => stop_runtime_sidecar_fast(app),
+        RunEvent::Exit | RunEvent::ExitRequested { .. } => {
+            // Detached sidecar: closing the UI must not kill a healthy Runtime on :8000.
+            clear_managed_sidecar(app);
+            crate::boot_trace::trace("sidecar: detached on app exit (runtime may keep running)");
+        }
         _ => {}
     }
 }

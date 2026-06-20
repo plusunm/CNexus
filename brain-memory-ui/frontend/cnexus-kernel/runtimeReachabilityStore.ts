@@ -180,21 +180,25 @@ export function markRuntimeReachabilityFailed(): void {
 
 export function bootstrapRuntimeReachabilityFromDisk(): void {
   ensureRuntimeReachabilityBus();
+  // cache layer exists only for display hint — NEVER as truth source for reachable
+  // MUST be overwritten by actual probe result
   const sessionId = getBootSessionId();
   const snap = loadRuntimeReachability();
   if (!snap?.reachable) return;
   if (snap.bootSessionId && snap.bootSessionId !== sessionId) return;
 
-  current = {
-    reachable: true,
-    bootPhase: snap.bootPhase,
-    phase: "pending",
-    bootSessionId: sessionId,
-    source: "snapshot",
-    updatedAt: snap.updatedAt,
-  };
-  schedulePendingResolve();
-  emit();
+  // Snapshot is only used for optimistic UI, not for enabling chat
+  if (current.phase === "idle") {
+    current = {
+      reachable: false, // explicitly NOT reachable until probe confirms
+      bootPhase: snap.bootPhase,
+      phase: "pending",
+      bootSessionId: sessionId,
+      source: "snapshot",
+      updatedAt: snap.updatedAt,
+    };
+    emit();
+  }
 }
 
 function applyBusSnapshot(snap: RuntimeReachabilitySnapshot) {

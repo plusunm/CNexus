@@ -11,6 +11,7 @@ import type { ShellLayout, ShellPanel } from "@/cnexus-kernel/shellTypes";
 import { panelDomId } from "@/cnexus-kernel/shellTypes";
 import { useFloatingBarStore } from "@/lib/floatingBarStore";
 import { FLOAT_SHORTCUT_HINT_TAURI, FLOAT_SHORTCUT_HINT_WEB } from "@/lib/floatWindowSpec";
+import { SecurityBootstrapGate } from "@/components/desktop/SecurityBootstrapGate";
 import { isTauriDesktop } from "@/lib/tauriDesktop";
 
 export type MindShellProps = {
@@ -75,7 +76,7 @@ export function MindShell({
   const layout = desktop ? "float" : uiMode;
 
   if (layout === "float") {
-    return (
+    const floatBody = (
       <div
         className={
           desktop
@@ -105,6 +106,8 @@ export function MindShell({
         <FloatingMindBar desktop={desktop} />
       </div>
     );
+
+    return desktop ? <SecurityBootstrapGate>{floatBody}</SecurityBootstrapGate> : floatBody;
   }
 
   return (

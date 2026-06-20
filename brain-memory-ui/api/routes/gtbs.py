@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from api.deps import get_runtime, peek_runtime
+from api.license_guard import require_feature
 
 router = APIRouter(prefix="/gtbs", tags=["gtbs"])
 
@@ -24,6 +25,7 @@ def _read_events(*, limit: int) -> list[dict[str, Any]]:
 
 @router.get("/events")
 async def list_write_intent_events(limit: int = Query(300, ge=1, le=5000)):
+    require_feature("CORE_GTBS")
     try:
         events = _read_events(limit=limit)
     except Exception as exc:

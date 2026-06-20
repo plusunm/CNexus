@@ -304,6 +304,7 @@ pub fn runtime_system_ready() -> bool {
 #[cfg(test)]
 mod tests {
     use super::SHOW_DELAY;
+    use std::time::Duration;
 
     #[test]
     fn show_delay_meets_gate_minimum() {

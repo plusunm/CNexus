@@ -55,7 +55,7 @@ DEFAULT_MODELS = [
         provider="ollama",
         base_url="http://localhost:11434",
         api_key="",
-        model="llama3.2",
+        model="llama3.2:3b",
         is_default=True,
     ),
     ModelProfile(

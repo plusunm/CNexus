@@ -22,6 +22,7 @@ from api.routes import (  # noqa: E402
     gtbs,
     ir,
     kernel,
+    license,
     logs,
     memory,
     models,
@@ -80,6 +81,7 @@ except ImportError:
 
 app.include_router(openai_compatible.router)
 app.include_router(v1_spec_router, prefix="/v1")
+app.include_router(license.router, prefix="/v1")
 configure_v1_dependencies(
     get_runtime=get_runtime,
     get_llm=get_llm,

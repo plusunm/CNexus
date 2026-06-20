@@ -8,12 +8,15 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 mod boot_state;
 mod boot_sequence;
 mod boot_trace;
+mod exit_trace;
 mod boot_ui;
 mod ollama_probe;
+mod pe_utils;
 mod runtime_cleanup;
 mod runtime_preflight;
 mod runtime_probe;
 mod runtime_sidecar;
+mod security_bootstrap;
 mod smoke_report;
 mod webview_shell;
 mod window_layout;
@@ -175,6 +178,7 @@ async fn show_float_window(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
+    exit_trace::note_exit_intent("quit_app_command", None);
     runtime_sidecar::stop_runtime_sidecar_fast(&app);
     app.exit(0);
 }
@@ -252,6 +256,7 @@ fn build_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
             let _ = app.emit("open-settings", ());
         }
         "quit" => {
+            exit_trace::note_exit_intent("tray_menu_quit", None);
             runtime_sidecar::stop_runtime_sidecar_fast(app);
             app.exit(0);
         }
@@ -311,6 +316,10 @@ pub fn run() {
             restart_runtime_sidecar,
             check_runtime_environment,
             show_float_window,
+            security_bootstrap::security_bootstrap_scan_app_dir,
+            security_bootstrap::security_bootstrap_preflight,
+            security_bootstrap::security_bootstrap_license_status,
+            security_bootstrap::security_bootstrap_heartbeat,
             boot_sequence::reveal_float_window_command,
             boot_sequence::grant_ui_render_command,
             boot_sequence::boot_fallback_demo_command,
@@ -324,8 +333,22 @@ pub fn run() {
         .setup(|app| {
             boot_ui::mark_app_start();
             boot_trace::trace("setup: begin");
+            let bootstrap = security_bootstrap::run_security_bootstrap_preflight(false);
+            boot_trace::trace(&format!(
+                "security bootstrap: ok={} code={} edition={}",
+                bootstrap.ok, bootstrap.internal_code, bootstrap.edition
+            ));
+            if !bootstrap.ok {
+                let _ = app.emit("cnexus:security-bootstrap-failed", &bootstrap);
+            } else {
+                let _ = app.emit("cnexus:security-bootstrap-ok", &bootstrap);
+            }
             // Start Runtime before UI/tray so API comes up in parallel with boot shell.
-            runtime_sidecar::start_runtime_sidecar(app.handle());
+            if bootstrap.ok || bootstrap.edition == "personal" {
+                runtime_sidecar::start_runtime_sidecar(app.handle());
+            } else {
+                boot_trace::trace("security bootstrap blocked runtime sidecar spawn");
+            }
             boot_trace::trace("setup: sidecar spawn requested");
             boot_sequence::start_runtime_ready_watch(app.handle().clone());
             smoke_report::reset_report_file();
@@ -366,13 +389,7 @@ pub fn run() {
                 boot_trace::trace("run event: Ready");
                 emit_boot_session(app_handle);
             }
-            match event {
-                tauri::RunEvent::Exit => boot_trace::trace("run event: Exit"),
-                tauri::RunEvent::ExitRequested { .. } => {
-                    boot_trace::trace("run event: ExitRequested")
-                }
-                _ => {}
-            }
+            exit_trace::on_run_event(&event);
             runtime_sidecar::on_run_event(app_handle, &event);
         });
 }

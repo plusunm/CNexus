@@ -1,4 +1,4 @@
-import type { CognitiveOutput } from "./cognitiveTypes";
+﻿import type { CognitiveOutput } from "./cognitiveTypes";
 import type { MindOverview, RuntimeState } from "./runtimeTypes";
 
 export type GtbsRawEvent = {
@@ -824,5 +824,228 @@ export const brainApi = {
       running: boolean;
     }>("/v1/ollama/stop", { method: "POST" }, 15_000),
 };
+
+// ==================== WS Interact 重连管理器 ====================
+
+export interface InteractMessage {
+  type: string;
+  content?: string;
+  [key: string]: unknown;
+}
+
+export interface InteractWSError {
+  type: "error";
+  error: string;
+  message?: string;
+  retry?: boolean;
+  retry_after?: number;
+  [key: string]: unknown;
+}
+
+export type InteractWSResponse = InteractWSError | Record<string, unknown>;
+
+class WSInteractManager {
+  private ws: WebSocket | null = null;
+  private retries = 0;
+  private maxRetries = 6;
+  private messageQueue: Array<{
+    msg: InteractMessage;
+    resolve: (res: InteractWSResponse) => void;
+    reject: (err: unknown) => void;
+  }> = [];
+  private isConnecting = false;
+  private pendingPing: ReturnType<typeof setInterval> | null = null;
+  private onMessageCallback: ((data: InteractWSResponse) => void) | null = null;
+  private onStatusChange: ((status: "connected" | "disconnected" | "reconnecting") => void) | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  connect(
+    onMessage: (data: InteractWSResponse) => void,
+    onStatus?: (status: "connected" | "disconnected" | "reconnecting") => void,
+  ): void {
+    this.onMessageCallback = onMessage;
+    this.onStatusChange = onStatus ?? null;
+    this._connect();
+  }
+
+  private _connect(): void {
+    if (this.isConnecting || this.ws?.readyState === WebSocket.OPEN) return;
+    this.isConnecting = true;
+    this.onStatusChange?.("reconnecting");
+
+    this.ws = new WebSocket(`${getWsBase()}/ws/interact`);
+
+    this.ws.onopen = () => {
+      console.log("[WS Interact] Connected");
+      this.retries = 0;
+      this.isConnecting = false;
+      this.onStatusChange?.("connected");
+      this._flushQueue();
+      this._startHeartbeat();
+    };
+
+    this.ws.onmessage = (event: MessageEvent) => {
+      try {
+        const data: InteractWSResponse = JSON.parse(event.data as string);
+        this.onMessageCallback?.(data);
+        if (data && "error" in data && data.error && (data as InteractWSError).retry) {
+          console.warn("[WS Interact] Server asked to retry:", (data as InteractWSError).message);
+        }
+      } catch (e) {
+        console.error("[WS Interact] Parse error", e);
+      }
+    };
+
+    this.ws.onclose = () => {
+      console.warn("[WS Interact] Closed");
+      this.isConnecting = false;
+      this._stopHeartbeat();
+      this.onStatusChange?.("disconnected");
+
+      if (this.retries < this.maxRetries) {
+        this.retries++;
+        const delay = Math.min(1000 * Math.pow(1.5, this.retries), 30000);
+        console.log(`[WS Interact] Reconnecting in ${delay}ms (${this.retries}/${this.maxRetries})`);
+        this.reconnectTimer = setTimeout(() => this._connect(), delay);
+      } else {
+        console.error("[WS Interact] Max retries reached");
+      }
+    };
+
+    this.ws.onerror = () => {
+      console.error("[WS Interact] Error");
+      this.ws?.close();
+    };
+  }
+
+  private _startHeartbeat(): void {
+    this._stopHeartbeat();
+    this.pendingPing = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 25000);
+  }
+
+  private _stopHeartbeat(): void {
+    if (this.pendingPing) {
+      clearInterval(this.pendingPing);
+      this.pendingPing = null;
+    }
+  }
+
+  private _flushQueue(): void {
+    while (this.messageQueue.length > 0) {
+      const item = this.messageQueue.shift()!;
+      this._sendNow(item.msg).then(item.resolve).catch(item.reject);
+    }
+  }
+
+  private _sendNow(msg: InteractMessage): Promise<InteractWSResponse> {
+    return new Promise((resolve) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(msg));
+        resolve({ type: "sent" });
+      } else {
+        resolve({ type: "buffer" });
+      }
+    });
+  }
+
+  send(msg: InteractMessage): Promise<InteractWSResponse> {
+    return new Promise((resolve, reject) => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(msg));
+        resolve({ type: "sent" });
+      } else {
+        this.messageQueue.push({ msg, resolve, reject });
+        if (!this.isConnecting) this._connect();
+      }
+    });
+  }
+
+  close(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this._stopHeartbeat();
+    this.ws?.close();
+    this.messageQueue = [];
+    this.retries = this.maxRetries;
+  }
+
+  getStatus(): "connected" | "disconnected" | "connecting" {
+    if (this.ws?.readyState === WebSocket.OPEN) return "connected";
+    if (this.isConnecting) return "connecting";
+    return "disconnected";
+  }
+}
+
+export const wsInteractManager = new WSInteractManager();
+
+// ==================== HTTP interact 自动重试 ====================
+
+export interface InteractPayload {
+  message: string;
+  userId?: string;
+  sessionId?: string;
+  useMemory?: boolean;
+  temperature?: number;
+}
+
+export interface InteractResult {
+  response: string;
+  coherence_score?: number;
+  governance_pass: boolean;
+  reflection?: string;
+  meta?: Record<string, unknown>;
+  error?: string;
+  retry?: boolean;
+  retry_after?: number;
+}
+
+export async function interactWithRetry(
+  payload: InteractPayload,
+  maxRetries = 3,
+): Promise<InteractResult> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await cnexusProductApi.interact(
+        payload.message,
+        {
+          userId: payload.userId,
+          sessionId: payload.sessionId,
+          useMemory: payload.useMemory,
+          temperature: payload.temperature,
+        },
+      );
+
+      const r = result as InteractResult;
+      if (r.retry) {
+        const delay = (r.retry_after ?? 5) * 1000;
+        console.warn(`[Interact] Server retry requested, waiting ${delay}ms`);
+        await new Promise((r) => { setTimeout(r, delay); });
+        continue;
+      }
+
+      return result as InteractResult;
+    } catch (err: unknown) {
+      lastError = err;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`[Interact] Attempt ${attempt + 1}/${maxRetries + 1} failed: ${errMsg}`);
+
+      if (attempt === maxRetries) break;
+
+      const delay = Math.min(1000 * Math.pow(1.5, attempt), 10000);
+      await new Promise((r) => { setTimeout(r, delay); });
+    }
+  }
+
+  throw lastError;
+}
+
 
 export { getApiBase as API_BASE, getWsBase as WS_BASE };

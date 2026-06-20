@@ -61,6 +61,12 @@ fn health_body_ok(body: &str) -> bool {
         || lower.contains("\"status\": \"warming\"")
 }
 
+fn json_bool_true(body: &str, key: &str) -> bool {
+    body.contains(&format!("\"{key}\":true"))
+        || body.contains(&format!("\"{key}\": true"))
+}
+
+/// Align with Backend capability SSOT — operational/full, not legacy status:"ready" only.
 fn response_body_ready(body: &str) -> bool {
     if body.contains("\"init_error\":")
         && !body.contains("\"init_error\":null")
@@ -77,9 +83,17 @@ fn response_body_ready(body: &str) -> bool {
             return false;
         }
     }
+    if json_bool_true(body, "full_ready") || json_bool_true(body, "operational_ready") {
+        return true;
+    }
+    if json_bool_true(body, "ready_for_chat") {
+        return true;
+    }
     body.contains("\"status\":\"ready\"")
         || body.contains("\"status\": \"ready\"")
         || body.contains("'status': 'ready'")
+        || body.contains("\"status\":\"operational\"")
+        || body.contains("\"status\": \"operational\"")
 }
 
 fn extract_init_error(body: &str) -> Option<String> {
@@ -130,4 +144,34 @@ pub fn http_get_body(port: u16, path: &str) -> Option<String> {
         .nth(1)
         .map(|body| body.to_string())
         .or(Some(response))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::response_body_ready;
+
+    #[test]
+    fn ready_accepts_operational_ssot() {
+        let body = r#"{"status":"operational","operational_ready":true,"full_ready":true}"#;
+        assert!(response_body_ready(body));
+    }
+
+    #[test]
+    fn ready_accepts_operational_without_legacy_ready_status() {
+        let body = r#"{"status":"operational","operational_ready":true,"full_ready":false}"#;
+        assert!(response_body_ready(body));
+    }
+
+    #[test]
+    fn ready_rejects_runtime_pointer_false() {
+        let body =
+            r#"{"status":"operational","operational_ready":true,"runtime_pointer":false}"#;
+        assert!(!response_body_ready(body));
+    }
+
+    #[test]
+    fn ready_accepts_legacy_ready_status() {
+        let body = r#"{"status":"ready","ws":"alive"}"#;
+        assert!(response_body_ready(body));
+    }
 }

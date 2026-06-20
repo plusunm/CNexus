@@ -1,0 +1,46 @@
+{
+  "version": "1.0.0",
+  "product": "CNexus",
+  "runtime_mode_allowed_tiers": {
+    "Trusted": ["T0", "T1", "T2", "T3", "T4"],
+    "OfflineGrace": ["T0", "T1", "T2"],
+    "Degraded": ["T0", "T1"],
+    "Locked": ["T0"]
+  },
+  "core_capabilities": {
+    "CORE_UI": "T0",
+    "CORE_LOGIN": "T0",
+    "CORE_NETWORK_DIAG": "T0",
+    "CORE_PERSONAL_DEMO": "T1",
+    "CORE_LOCAL_RUNTIME": "T2",
+    "CORE_ENTERPRISE_RUNTIME": "T3",
+    "CORE_API_TOKEN": "T3",
+    "CORE_GTBS": "T3",
+    "CORE_SIBT": "T3",
+    "CORE_CLUSTER": "T4",
+    "CORE_MODEL_ADMIN": "T4",
+    "CORE_CLOUD_SYNC": "T4"
+  },
+  "editions": {
+    "personal": {
+      "default_features": [
+        "CORE_UI",
+        "CORE_LOGIN",
+        "CORE_NETWORK_DIAG",
+        "CORE_PERSONAL_DEMO"
+      ]
+    },
+    "enterprise": {
+      "default_features": [
+        "CORE_UI",
+        "CORE_LOGIN",
+        "CORE_NETWORK_DIAG",
+        "CORE_LOCAL_RUNTIME",
+        "CORE_ENTERPRISE_RUNTIME",
+        "CORE_API_TOKEN",
+        "CORE_GTBS",
+        "CORE_SIBT"
+      ]
+    }
+  }
+}

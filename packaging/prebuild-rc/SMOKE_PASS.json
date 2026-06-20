@@ -1,9 +1,7 @@
 ﻿{
-    "passed":  true,
-    "sidecar":  "D:\\类脑记忆\\CNexus — Observational Cognition Platform\\brain-memory-ui\\frontend\\src-tauri\\cnexus-runtime-x86_64-pc-windows-msvc.exe",
-    "ready_ms":  26212,
-    "at":  "2026-06-13T02:48:15.2375056+08:00",
-    "total_ms":  32681,
-    "shutdown_ms":  1144,
-    "ws_ms":  55
+    "ready_ms":  60026,
+    "total_ms":  70173,
+    "at":  "2026-06-20T08:34:14.0093874+08:00",
+    "ws_ms":  null,
+    "passed":  false
 }

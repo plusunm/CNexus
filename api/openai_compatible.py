@@ -43,7 +43,13 @@ def _get_registry() -> ModelRegistry:
 def _get_skills() -> SkillRegistry:
     global _skills
     if _skills is None:
-        _skills = build_default_skill_registry(_get_runtime())
+        from core.control_plane.dispatch import AuthorityDispatcher
+
+        runtime = _get_runtime()
+        _skills = build_default_skill_registry(
+            runtime,
+            observe_read=AuthorityDispatcher(runtime).observe_read,
+        )
     return _skills
 
 

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { initCnexusConfig } from "@/lib/cnexusConfig";
+import { startSecurityHeartbeat, stopSecurityHeartbeat } from "@/lib/securityBootstrap";
 import { isTauriDesktop } from "@/lib/tauriDesktop";
 import {
   defaultConnectionPreference,
@@ -85,6 +86,16 @@ export function MindConnectionProvider({ children }: { children: React.ReactNode
       setHydrated(true);
     });
   }, []);
+
+  useEffect(() => {
+    if (!hydrated || !configReady) return;
+    if (!isTauriDesktop()) return;
+    const profile = getEditionProfile(getEdition());
+    if (!profile.licenseRequired) return;
+
+    startSecurityHeartbeat();
+    return () => stopSecurityHeartbeat();
+  }, [hydrated, configReady]);
 
   const selectPreference = useCallback(
     (next: ConnectionPreference) => {

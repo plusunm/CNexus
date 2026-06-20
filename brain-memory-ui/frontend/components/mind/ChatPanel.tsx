@@ -171,19 +171,19 @@ export function ChatPanel({
     return () => window.clearTimeout(timer);
   }, [isFloat, autoFocusInput]);
 
-  const resolveModelId = useCallback(() => {
+  /** Strict: returns valid model_id or null. No silent fallback. */
+  const resolveModelIdStrict = useCallback((): { valid: true; id: string } | { valid: false; reason: string } => {
     const selected = models.find((m) => m.id === selectedModelId);
-    if (selected?.enabled && (selected.api_key_set || selected.provider === "ollama")) {
-      return selected.id;
+    if (!selected || !selected.enabled) {
+      return { valid: false, reason: "SELECTED_MODEL_DISABLED" };
     }
-    const defaultModel = models.find((m) => m.is_default);
-    if (defaultModel?.enabled && (defaultModel.api_key_set || defaultModel.provider === "ollama")) {
-      return defaultModel.id;
+    if (selected.provider === "ollama") {
+      return { valid: true, id: selected.id };
     }
-    const ollama = models.find((m) => m.id === "ollama-local" && m.enabled);
-    if (ollama) return ollama.id;
-    const keyed = models.find((m) => m.api_key_set && m.enabled);
-    return keyed?.id || selectedModelId || undefined;
+    if (selected.api_key_set) {
+      return { valid: true, id: selected.id };
+    }
+    return { valid: false, reason: "MODEL_NO_KEY" };
   }, [models, selectedModelId]);
 
   const appendAssistant = useCallback((text: string, meta?: string) => {
@@ -275,8 +275,14 @@ export function ChatPanel({
       setLoading(false);
       return;
     }
+    const modelRes = resolveModelIdStrict();
+    if (!modelRes.valid) {
+      appendAssistant(`⚠ 发送失败：未选择可用模型（${modelRes.reason}）\n请在下方选择一个已配置 API Key 或 Ollama 的模型。`);
+      setLoading(false);
+      return;
+    }
     try {
-      const modelId = resolveModelId();
+      const modelId = modelRes.id;
       pendingModelIdRef.current = modelId;
       pendingUserTextRef.current = text;
       const prepared = await brainApi.chatPrepare(text, modelId, true, fullCognitiveLoop);
@@ -296,7 +302,7 @@ export function ChatPanel({
       appendAssistant(`聊天失败：${formatChatError(detail)}`);
       setLoading(false);
     }
-  }, [input, loading, authPreview, authLoading, isDemo, canChat, resolveModelId, appendAssistant, fullCognitiveLoop]);
+  }, [input, loading, authPreview, authLoading, isDemo, canChat, resolveModelIdStrict, appendAssistant, fullCognitiveLoop]);
 
   const openMessageMenu = useCallback((clientX: number, clientY: number, index: number) => {
     setShareIndex(null);

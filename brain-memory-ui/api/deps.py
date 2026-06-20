@@ -227,5 +227,8 @@ def get_skill_registry() -> SkillRegistry:
     if _skills is None:
         with _runtime_lock:
             if _skills is None:
-                _skills = build_default_skill_registry(get_runtime())
+                _skills = build_default_skill_registry(
+                    get_runtime(),
+                    observe_read=get_dispatcher().observe_read,
+                )
     return _skills

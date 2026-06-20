@@ -20,7 +20,7 @@ const FLOAT_TABS: { id: ImportTab; label: string; icon: typeof UploadCloud }[] =
 export function FloatingUploadPanel() {
   const t = useMindTheme();
   const embeddingStatus = useEmbeddingStatus();
-  const imp = useMemoryImport({ deferFileCapture: true });
+  const imp = useMemoryImport({ deferFileCapture: true, navigateAfterImport: false });
 
   const noteColor =
     imp.importNote?.includes("失败") || imp.importNote?.includes("请先")

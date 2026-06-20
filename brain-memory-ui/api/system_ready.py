@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import Any, Dict
 
-from api.license_guard import api_token_required, expected_api_token
+from api.license_guard import api_token_required, expected_api_token, license_valid
 from core.runtime.boot_protocol import (
     BootPhase,
     boot_ready_details,
@@ -84,7 +84,7 @@ def _auth_gates() -> tuple[bool, bool]:
     token_valid = True
     if api_token_required():
         token_valid = bool(expected_api_token())
-    return token_valid, True
+    return token_valid, license_valid()
 
 
 def _envelope_ready_payload(runtime: Any, *, mode: str = "default") -> Dict[str, Any]:

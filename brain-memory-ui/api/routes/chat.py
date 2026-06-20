@@ -118,6 +118,12 @@ class ChatResponse(BaseModel):
 
     model_name: str
 
+    requested_model_id: Optional[str] = None
+
+    fallback_used: bool = False
+
+    fallback_reason: Optional[str] = None
+
     coherence_score: Optional[float] = None
 
     meta_reflection: Optional[Dict[str, Any]] = None
@@ -162,52 +168,46 @@ def _resolve_profile(registry, model_id: Optional[str]):
 
         raise HTTPException(400, "No model configured")
 
+    fallback_used = False
+    fallback_reason = None
+    resolved = profile
+
     if profile.provider != "ollama" and not (profile.api_key or "").strip():
 
         fallback = registry.get("ollama-local")
 
         if fallback and fallback.enabled:
+            fallback_used = True
+            fallback_reason = "model_no_key"
+            resolved = fallback
 
-            return fallback
+        if not fallback or not fallback.enabled:
+            raise HTTPException(
+                400,
+                "云端模型 API Key 未配置或无效 — 请在「大模型 API」重新保存 Key，或先使用 Ollama 本地",
+            )
 
-        raise HTTPException(
-
-            400,
-
-            "云端模型 API Key 未配置或无效 — 请在「大模型 API」重新保存 Key，或先使用 Ollama 本地",
-
-        )
-
-    return profile
+    return resolved, fallback_used, fallback_reason
 
 
 
 
 
 def _build_chat_response(
-
     *,
-
     result: Dict[str, Any],
-
     profile,
-
     req_message: str,
-
     use_memory: bool,
-
     pipeline: str,
-
     start: float,
-
     full_cognitive_loop: bool,
-
     human_authorized: bool,
-
     runtime,
-
     pre_state=None,
-
+    requested_model_id: Optional[str] = None,
+    fallback_used: bool = False,
+    fallback_reason: Optional[str] = None,
 ) -> ChatResponse:
 
     reply = result.get("reply") or result.get("response", "")
@@ -283,6 +283,12 @@ def _build_chat_response(
         model_id=profile.id,
 
         model_name=profile.name,
+
+        requested_model_id=requested_model_id,
+
+        fallback_used=fallback_used,
+
+        fallback_reason=fallback_reason,
 
         coherence_score=result.get("coherence_score"),
 
@@ -378,7 +384,7 @@ async def chat_confirm(req: ChatConfirmRequest):
 
 
 
-    profile = _resolve_profile(registry, req.model_id)
+    profile, fallback_used, fallback_reason = _resolve_profile(registry, req.model_id)
 
     start = time.time()
 
@@ -443,6 +449,12 @@ async def chat_confirm(req: ChatConfirmRequest):
         runtime=runtime,
 
         pre_state=pre_state,
+
+        requested_model_id=req.model_id,
+
+        fallback_used=fallback_used,
+
+        fallback_reason=fallback_reason,
 
     )
 

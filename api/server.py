@@ -1,4 +1,8 @@
 import os
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import Optional
 
@@ -241,3 +245,51 @@ def recall_preview(q: str):
 
 if WEB_DIR.exists():
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
+
+
+@app.post("/api/runtime/reset")
+async def reset_runtime(force: bool = False):
+    """
+    Hot-reset BrainMemoryRuntime singleton.
+
+    Clears all cached global references so the next getter call
+    lazily reinitialises a fresh instance.  Intended for CDP
+    blackout, boot-phase hang, or Engine-Crash recovery.
+    """
+    global _runtime, _dispatcher, _legacy_adapter, _registry
+
+    start = time.time()
+    logger.info("Runtime reset requested (force=%s)", force)
+
+    old = _runtime
+    shutdown_ok = False
+    if old is not None:
+        try:
+            timeout = 5.0 if force else 15.0
+            shutdown_ok = old.shutdown(timeout=timeout)
+        except Exception as exc:
+            logger.warning("runtime.shutdown: %s", exc)
+
+    _runtime = None
+    _dispatcher = None
+    _legacy_adapter = None
+    _registry = None
+
+    try:
+        fresh = get_runtime()
+        ready = getattr(fresh, "is_system_ready", lambda: False)()
+        elapsed = round(time.time() - start, 2)
+        logger.info("Runtime reset OK (elapsed=%.2f, ready=%s)", elapsed, ready)
+        return {
+            "success": True,
+            "shutdown_ok": shutdown_ok,
+            "ready": ready,
+            "elapsed": elapsed,
+        }
+    except Exception as exc:
+        logger.exception("Runtime reinit failed after reset")
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "重置后初始化失败", "error": str(exc)},
+        )
+
