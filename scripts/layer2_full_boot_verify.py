@@ -356,6 +356,105 @@ def _run_b7_self_model(
     snippet = "\n".join(f"{name}: before={before.get(name)} after={after.get(name)}" for name in DOMAIN_FILES)
     return _gate(run, "B7", "SelfModel domain isolation (mtime)", ok, detail, snippet)
 
+def _run_l4_conscious_flow(run: VerifyRun) -> tuple[GateResult, GateResult, GateResult]:
+    """L4-1/2/3 offline stack — simulation, prune filter, reasoning trace (Σ.T only)."""
+    memory_root = str(run.memory_dir or run.sandbox_dir)
+    base = Path(memory_root)
+    obs = base / "observability"
+    decide_path = obs / "self_model_decide.json"
+    decide_mtime = decide_path.stat().st_mtime if decide_path.is_file() else None
+
+    try:
+        from core.runtime.conscious_flow import (
+            CandidateResponse,
+            SimulationBudget,
+            SimulationEngine,
+            build_reasoning_trace_from_report,
+            evaluate_trajectories,
+        )
+        from core.runtime.trace_store import list_trace_shards
+
+        engine = SimulationEngine(budget=SimulationBudget(max_branches=2, max_wall_ms=2000))
+        report = engine.run_filtered_simulation(
+            user_query="L4 FULL BOOT conscious flow probe",
+            core_beliefs={"稳定性优先": 0.93, "诚实第一": 0.96},
+            baseline_coherence=0.82,
+            base_dir=memory_root,
+        )
+        l41_ok = len(report.kept) >= 1
+        l41_detail = f"kept={len(report.kept)} pruned={len(report.pruned)} trace_id={report.trace_id}"
+
+        shards = list_trace_shards(memory_root)
+        sim_rows = 0
+        eval_rows = 0
+        for shard in shards:
+            for line in shard.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("type") == "simulation_step":
+                    sim_rows += 1
+                if row.get("type") == "eval_step":
+                    eval_rows += 1
+        l41_ok = l41_ok and sim_rows >= 1
+        l41_detail += f"; simulation_step={sim_rows}"
+
+        dangerous = CandidateResponse(
+            branch_id="bad",
+            response_text="建议用户执行危险操作",
+            expected_stability_score=0.5,
+            assumption_seed="reckless",
+        )
+        safe = CandidateResponse(
+            branch_id="good",
+            response_text="稳定诚实的协作建议",
+            expected_stability_score=0.88,
+            assumption_seed="helpful_direct",
+        )
+        filtered = evaluate_trajectories(
+            [safe, dangerous],
+            trace_id=report.trace_id,
+            base_dir=memory_root,
+        )
+        kept_ids = {c.branch_id for c in filtered.candidates}
+        eval_rows = 0
+        for shard in list_trace_shards(memory_root):
+            for line in shard.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("type") == "eval_step":
+                    eval_rows += 1
+        l42_ok = "good" in kept_ids and "bad" not in kept_ids and eval_rows >= 1
+        l42_detail = f"kept={sorted(kept_ids)} eval_step={eval_rows}"
+
+        trace = build_reasoning_trace_from_report(report, query_preview="L4 probe")
+        l43_ok = trace is not None and bool(trace.assumption_seed) and trace.assumption_seed in {
+            c.candidate.assumption_seed for c in report.kept
+        }
+        decide_after = decide_path.stat().st_mtime if decide_path.is_file() else None
+        if decide_mtime is not None and decide_after is not None:
+            l43_ok = l43_ok and decide_after == decide_mtime
+        l43_detail = f"assumption_seed={getattr(trace, 'assumption_seed', None)} decide_mtime_unchanged={decide_after == decide_mtime if decide_mtime else 'n/a'}"
+
+    except Exception as exc:
+        l41 = _gate(run, "L4-1", "Conscious flow simulation (Σ.T)", False, str(exc)[:400])
+        l42 = _gate(run, "L4-2", "Trajectory prune filter", False, "skipped — L4-1 failed")
+        l43 = _gate(run, "L4-3", "Reasoning trace + Σ.I isolation", False, "skipped — L4-1 failed")
+        return l41, l42, l43
+
+    l41 = _gate(run, "L4-1", "Conscious flow simulation (Σ.T)", l41_ok, l41_detail)
+    l42 = _gate(run, "L4-2", "Trajectory prune filter", l42_ok, l42_detail)
+    l43 = _gate(run, "L4-3", "Reasoning trace + Σ.I isolation", l43_ok, l43_detail)
+    return l41, l42, l43
+
+
 def _stop_api(run: VerifyRun) -> None:
     if run.proc is None:
         return
@@ -371,12 +470,14 @@ def _stop_api(run: VerifyRun) -> None:
 def _render_report(run: VerifyRun) -> str:
     template = REPORT_TEMPLATE.read_text(encoding="utf-8")
     b1_b8 = [next((r for r in run.results if r.gate_id == f"B{i}"), None) for i in range(1, 9)]
-    b9_pass = all(r.passed for r in b1_b8 if r is not None) and len([r for r in b1_b8 if r]) >= 8
+    l4_gates = [next((r for r in run.results if r.gate_id == gid), None) for gid in ("L4-1", "L4-2", "L4-3")]
+    l4_pass = all(r.passed for r in l4_gates if r is not None) and len([r for r in l4_gates if r]) >= 3
+    b9_pass = all(r.passed for r in b1_b8 if r is not None) and len([r for r in b1_b8 if r]) >= 8 and l4_pass
     if not any(r.gate_id == "B9" for r in run.results):
         _gate(
             run,
             "B9",
-            "Automated summary (B1–B8)",
+            "Automated summary (B1–B8 + L4-1..3)",
             b9_pass,
             "all automated gates green" if b9_pass else "one or more gates failed",
         )
@@ -391,6 +492,9 @@ def _render_report(run: VerifyRun) -> str:
     def detail(gate_id: str) -> str:
         r = by_id.get(gate_id)
         return r.detail if r else "not run"
+
+    def l4_status(gate_id: str) -> str:
+        return status(gate_id)
 
     overall = "PASS" if run.all_passed else "FAIL"
     layer2 = "✅ COMPLETE (pending B10 manual)" if b9_pass else "❌ BLOCKED"
@@ -424,6 +528,12 @@ def _render_report(run: VerifyRun) -> str:
         "{b8_detail}": detail("B8"),
         "{b9_status}": status("B9"),
         "{b9_detail}": detail("B9"),
+        "{l4_1_status}": l4_status("L4-1"),
+        "{l4_1_detail}": detail("L4-1"),
+        "{l4_2_status}": l4_status("L4-2"),
+        "{l4_2_detail}": detail("L4-2"),
+        "{l4_3_status}": l4_status("L4-3"),
+        "{l4_3_detail}": detail("L4-3"),
     }
     out = template
     for key, value in replacements.items():
@@ -480,6 +590,7 @@ def main() -> int:
             after_mt = _file_mtimes(obs_dir)
             _run_b7_self_model(run, before_boot_mt, after_mt, obs_dir)
             _run_b6_b8_trace(run)
+        _run_l4_conscious_flow(run)
     finally:
         _stop_api(run)
         if args.sandbox:

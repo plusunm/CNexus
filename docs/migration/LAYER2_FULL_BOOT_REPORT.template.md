@@ -27,7 +27,17 @@
 | B6 | Canonical Trace — `t-{16hex}` in Σ.T daily shard | {b6_status} | {b6_detail} |
 | B7 | SelfModel Domain Isolation — partial `self_model_*.json` mtime | {b7_status} | {b7_detail} |
 | B8 | Σ.T Persistence — `interaction_step` rows in today shard | {b8_status} | {b8_detail} |
-| B9 | Automated Summary — B1–B8 all green | {b9_status} | {b9_detail} |
+| B9 | Automated Summary — B1–B8 + L4-1..3 all green | {b9_status} | {b9_detail} |
+
+---
+
+## Layer 4 — Conscious Flow (L4-1..L4-3)
+
+| ID | Gate | Status | Detail |
+|----|------|--------|--------|
+| L4-1 | SimulationEngine — `simulation_step` in Σ.T | {l4_1_status} | {l4_1_detail} |
+| L4-2 | TrajectoryEvaluator — prune dangerous branches | {l4_2_status} | {l4_2_detail} |
+| L4-3 | ReasoningTrace — assumption_seed + Σ.I mtime lock | {l4_3_status} | {l4_3_detail} |
 
 ---
 
@@ -80,5 +90,6 @@
 | L2-1 | Canonical trace ID | B6 |
 | L2-2 | Daily Σ.T sharding | B4, B8 |
 | L2-3 | FULL BOOT dry run | This report |
+| L4 | Conscious flow stack | L4-1, L4-2, L4-3 |
 
 **Layer 2 Status:** {layer2_status}

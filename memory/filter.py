@@ -1,5 +1,14 @@
 import math
+from enum import Enum
 from typing import Tuple
+
+
+class CaptureMode(str, Enum):
+    UNSPECIFIED = "unspecified"
+    CHAT = "chat"
+    INGEST = "ingest"
+    SYSTEM = "system"
+    RAW = "raw"
 
 
 class CaptureFilter:
@@ -10,7 +19,7 @@ class CaptureFilter:
     ENTROPY_THRESHOLD = 6.2
 
     @staticmethod
-    def should_reject(role: str, content: str) -> Tuple[bool, str]:
+    def should_reject(role: str, content: str, mode: CaptureMode | None = None) -> Tuple[bool, str]:
         if role in CaptureFilter.ROLE_BLOCKLIST:
             return True, f"blocklisted role: {role}"
         if len(content) < CaptureFilter.MIN_LEN:
