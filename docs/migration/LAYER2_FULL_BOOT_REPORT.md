@@ -7,10 +7,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Run ID** | `a29e24dc38c1` |
-| **Timestamp (UTC)** | `2026-06-20 01:03:19 UTC` |
-| **Sandbox** | `C:\ProgramData\cnexus\layer2-boot\a29e24dc38c1` |
-| **API Base** | `http://127.0.0.1:54461` |
+| **Run ID** | `181a6d08a08f` |
+| **Timestamp (UTC)** | `2026-06-20 01:15:37 UTC` |
+| **Sandbox** | `C:\ProgramData\cnexus\layer2-boot\181a6d08a08f` |
+| **API Base** | `http://127.0.0.1:62805` |
 | **Overall** | **PASS** |
 
 ---
@@ -22,9 +22,9 @@
 | B1 | API Ready — `GET /v1/system/ready` → `operational_ready` | ✅ PASS | HTTP 200; operational_ready=True |
 | B2 | AST Compliance — `assert_observability_compliance()` | ✅ PASS | assert_observability_compliance() clean |
 | B3 | Governance Probe — `GET /governance/state` → `overall_stability_score` | ✅ PASS | overall_stability_score=0.9560000000000001 |
-| B4 | Observe Probe — memory stats + cross-shard `total_lines` | ✅ PASS | memory/stats HTTP 200 total=1; linkage trace total_lines=2 shard_count=1; memory_dir=C:\ProgramData\cnexus\layer2-boot\a29e24dc38c1 |
-| B5 | Interact Smoke — `POST /v1/interact` (mock LLM) | ✅ PASS | governance_pass=True trace_id=t-6d84edf6922b4f2e |
-| B6 | Canonical Trace — `t-{16hex}` in Σ.T daily shard | ✅ PASS | shard=2026-06-20.jsonl canonical_trace_ids=9 sample=['t-3b8dc8f7c7f042be'] |
+| B4 | Observe Probe — memory stats + cross-shard `total_lines` | ✅ PASS | memory/stats HTTP 200 total=1; linkage trace total_lines=2 shard_count=1; memory_dir=C:\ProgramData\cnexus\layer2-boot\181a6d08a08f |
+| B5 | Interact Smoke — `POST /v1/interact` (mock LLM) | ✅ PASS | governance_pass=True trace_id=t-931b6b53635745e3 |
+| B6 | Canonical Trace — `t-{16hex}` in Σ.T daily shard | ✅ PASS | shard=2026-06-20.jsonl canonical_trace_ids=9 sample=['t-7898b2b02b5045c0'] |
 | B7 | SelfModel Domain Isolation — partial `self_model_*.json` mtime | ✅ PASS | updated=['self_model_cognize.json'] unchanged=[] unified_present=False (partial domain update — isolation OK) |
 | B8 | Σ.T Persistence — `interaction_step` rows in today shard | ✅ PASS | interaction_step_rows=5 shard=2026-06-20.jsonl |
 | B9 | Automated Summary — B1–B8 + L4-1..3 all green | ✅ PASS | all automated gates green |
@@ -35,7 +35,7 @@
 
 | ID | Gate | Status | Detail |
 |----|------|--------|--------|
-| L4-1 | SimulationEngine — `simulation_step` in Σ.T | ✅ PASS | kept=2 pruned=0 trace_id=sim-ead2113fa6b54c58; simulation_step=6 |
+| L4-1 | SimulationEngine — `simulation_step` in Σ.T | ✅ PASS | kept=2 pruned=0 trace_id=sim-013d34d30a33455d; simulation_step=6 |
 | L4-2 | TrajectoryEvaluator — prune dangerous branches | ✅ PASS | kept=['good'] eval_step=9 |
 | L4-3 | ReasoningTrace — assumption_seed + Σ.I mtime lock | ✅ PASS | assumption_seed=cautious_contextual decide_mtime_unchanged=n/a |
 
@@ -64,7 +64,7 @@
 ### Trace store (cross-shard)
 
 ```json
-{"memory_total": 1, "trace_event": {"path": "C:\\ProgramData\\cnexus\\layer2-boot\\a29e24dc38c1\\traces\\2026-06-20.jsonl", "trace_store_path": "C:\\ProgramData\\cnexus\\layer2-boot\\a29e24dc38c1\\traces", "shard_count": 1, "exists": true, "readable": true, "total_lines": 2, "trace_total_entries": 2, "l3_tick_count": 0, "trace_loop_iterations": 0, "interaction_step_count": 0, "last_tick_ms": null, "trace_last_loop_mono_ms": null, "last_event_type": "kernel_execution", "trace_last_event_type": "kernel_execution", "flow_active": false, "trace_flow_alive": false, "no_flow": true, "trace_flow_stopped": true, "partial_flow": false, "backlog_hint": 0}}
+{"memory_total": 1, "trace_event": {"path": "C:\\ProgramData\\cnexus\\layer2-boot\\181a6d08a08f\\traces\\2026-06-20.jsonl", "trace_store_path": "C:\\ProgramData\\cnexus\\layer2-boot\\181a6d08a08f\\traces", "shard_count": 1, "exists": true, "readable": true, "total_lines": 2, "trace_total_entries": 2, "l3_tick_count": 0, "trace_loop_iterations": 0, "interaction_step_count": 0, "last_tick_ms": null, "trace_last_loop_mono_ms": null, "last_event_type": "kernel_execution", "trace_last_event_type": "kernel_execution", "flow_active": false, "trace_flow_alive": false, "no_flow": true, "trace_flow_stopped": true, "partial_flow": false, "backlog_hint": 0}}
 ```
 
 ### Interact response (truncated)
@@ -76,7 +76,7 @@
 ### SelfModel domain mtimes
 
 ```
-self_model_cognize.json: before=None after=1781917398.7359464
+self_model_cognize.json: before=None after=1781918137.5484223
 self_model_decide.json: before=None after=None
 self_model_store_meta.json: before=None after=None
 ```
