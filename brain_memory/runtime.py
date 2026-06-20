@@ -942,21 +942,33 @@ class BrainMemoryRuntime:
         context: str,
         chat_mode: bool = False,
     ) -> tuple[Any, Dict[str, Any], bool]:
-        integration = self.self_model_store.integrate(
-            text,
-            response,
-            reflection=reflection,
-            dna=self.dna_engine.dna,
-            prediction_error=error,
-            relation_shift=self.working_self.relationship_tone - 0.7,
-        )
+        if chat_mode:
+            from core.evolved.cognitive_hooks import apply_cognize_step
 
-        self.narrative.update_from_interaction(
-            text, response, reflection=reflection, importance=0.65
-        )
-        self._sync_narrative_from_self_model()
-        self.belief_engine._persist_narrative_block()
-        self._sync_beliefs_from_self_model()
+            integration = apply_cognize_step(
+                self.self_model_store,
+                user_input=text,
+                response=response,
+            )
+            self.narrative.update_from_interaction(
+                text, response, reflection=reflection, importance=0.65
+            )
+        else:
+            integration = self.self_model_store.integrate(
+                text,
+                response,
+                reflection=reflection,
+                dna=self.dna_engine.dna,
+                prediction_error=error,
+                relation_shift=self.working_self.relationship_tone - 0.7,
+            )
+
+            self.narrative.update_from_interaction(
+                text, response, reflection=reflection, importance=0.65
+            )
+            self._sync_narrative_from_self_model()
+            self.belief_engine._persist_narrative_block()
+            self._sync_beliefs_from_self_model()
 
         meta_reflection_payload: Dict[str, Any] = {}
         reflection_triggered = False

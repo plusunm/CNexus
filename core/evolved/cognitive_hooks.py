@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from core.self_model.self_model import BELIEF_CAP, MAX_IDENTITY_CHARS, MAX_STORY_CHARS
+
 COGNIZE_INTENTS = frozenset({"chat", "observe", "reflect_review", "capture_cognition"})
 DECIDE_INTENTS = frozenset({"control", "cdg_apply", "governance_validate", "reflect_due_reviews"})
 MAX_ATTRACTOR_COHERENCE_STEP = 0.1
@@ -109,6 +111,56 @@ def apply_decide_step(store: Any, *, intent_type: str = "") -> Dict[str, Any]:
         _touch(model, "identity_summary", f"{summary[:520]} [{intent_type}]".strip())
     store.save_domain("decide")
     return {"step": "DECIDE", "intent_type": intent_type, "updated_at": now}
+
+
+def apply_consolidation_step(
+    store: Any,
+    *,
+    autobiography_delta: str = "",
+    beliefs_delta: Optional[Dict[str, float]] = None,
+    identity_summary_delta: str = "",
+) -> Dict[str, Any]:
+    """L3-3 daily reflection — merge-only Σ.I updates, atomic save_domain('decide')."""
+    model = store.model
+    now = datetime.now(timezone.utc).isoformat()
+    merged_beliefs: Dict[str, float] = {}
+
+    story = str(getattr(model, "autobiographical_story", "") or "")
+    if autobiography_delta and autobiography_delta not in story:
+        story = f"{story}\n{autobiography_delta}".strip()
+        if len(story) > MAX_STORY_CHARS:
+            story = story[-MAX_STORY_CHARS:]
+        _touch(model, "autobiographical_story", story)
+
+    summary = str(getattr(model, "identity_summary", "") or "")
+    if identity_summary_delta and identity_summary_delta not in summary:
+        summary = f"{summary}。{identity_summary_delta}".strip()
+        if len(summary) > MAX_IDENTITY_CHARS:
+            summary = summary[-MAX_IDENTITY_CHARS:]
+        _touch(model, "identity_summary", summary)
+
+    beliefs = dict(getattr(model, "core_beliefs", None) or {})
+    for key, delta in (beliefs_delta or {}).items():
+        if not key:
+            continue
+        try:
+            bump = float(delta)
+        except (TypeError, ValueError):
+            continue
+        current = float(beliefs.get(key, 0.85))
+        beliefs[key] = min(BELIEF_CAP, current + bump)
+        merged_beliefs[str(key)] = beliefs[key]
+    if merged_beliefs:
+        _touch(model, "core_beliefs", beliefs)
+
+    store.save_domain("decide")
+    return {
+        "step": "DAILY_CONSOLIDATION",
+        "updated_at": now,
+        "beliefs_merged": merged_beliefs,
+        "story_appended": bool(autobiography_delta),
+        "identity_appended": bool(identity_summary_delta),
+    }
 
 
 def apply_store_selfmodel_step(store: Any, *, block_updated_at: Optional[str] = None) -> Dict[str, Any]:

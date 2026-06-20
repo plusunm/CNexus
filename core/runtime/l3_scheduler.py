@@ -32,6 +32,7 @@ class L3TaskKind(str, Enum):
     STORAGE_BATCH = "storage_batch"
     WARMUP = "warmup"
     ATTRACTOR_RECALIBRATION = "attractor_recalibration"
+    DAILY_REFLECTION = "daily_reflection"
 
 
 @dataclass

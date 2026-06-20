@@ -143,6 +143,12 @@ class CognitiveWarmupAdapter:
             run_stability_monitor_tick(self.runtime, self.scheduler)
         except Exception:
             pass
+        try:
+            from core.runtime.reflection_background import run_daily_reflection_tick
+
+            run_daily_reflection_tick(self.runtime, self.scheduler)
+        except Exception:
+            pass
         if result.queue_empty:
             self.done = True
             mark_cognitive_warmup_done()
