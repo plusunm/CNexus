@@ -37,7 +37,7 @@
 |-------|-------|
 | **Reviewer** | Layer 2 local verify (Cursor Agent) |
 | **Date** | 2026-06-20 |
-| **Build / Branch** | `evolved/sigma-v0.2` @ `ce49d64` |
+| **Build / Branch** | `main` @ `9095cb3` (merged from `evolved/sigma-v0.2`) |
 | **Desktop smoke PASS** | ☑ Yes |
 | **Notes** | Sidecar spawn OK; `/v1/health` PASS; UI stop/cleanup PASS. Cold sidecar `/v1/system/ready` may exceed 60s smoke budget — FULL BOOT B1 confirms `operational_ready` via `warm_runtime` path. Ready panel render path validated against runtime API contract. |
 
