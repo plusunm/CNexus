@@ -126,6 +126,56 @@ def trace_stats(base_dir: Optional[str] = None, *, tail_lines: int = 80) -> Dict
     }
 
 
+def read_recent_interaction_steps(
+    base_dir: Optional[str] = None,
+    *,
+    since_hours: float = 24.0,
+    limit: int = 32,
+    scan_multiplier: int = 20,
+) -> List[Dict[str, Any]]:
+    """Tail-read Σ.T shards and return recent ``interaction_step`` rows (read-only).
+
+    Uses reverse block reading across daily shards; filters by ``since_hours`` UTC window.
+    """
+    root = resolve_base_dir(base_dir)
+    if not root or limit <= 0:
+        return []
+
+    since_hours = max(0.0, float(since_hours))
+    cutoff_ts = time.time() - since_hours * 3600.0
+    tail_budget = min(max(int(limit) * max(scan_multiplier, 1), 64), 8000)
+
+    shards = list_trace_shards(root)
+    raw_lines: List[str] = []
+    if shards:
+        raw_lines = _tail_from_shards(shards, tail_budget)
+    else:
+        legacy = legacy_trace_path(root)
+        if legacy is not None and legacy.is_file():
+            try:
+                raw_lines = _read_tail_lines(legacy, tail_budget)
+            except OSError:
+                raw_lines = []
+
+    steps: List[Dict[str, Any]] = []
+    for raw in raw_lines:
+        try:
+            row = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if row.get("type") != "interaction_step":
+            continue
+        ts = row.get("ts")
+        if isinstance(ts, (int, float)) and float(ts) < cutoff_ts:
+            continue
+        steps.append(row)
+
+    steps.sort(key=lambda r: float(r.get("ts") or 0.0))
+    if len(steps) > limit:
+        steps = steps[-limit:]
+    return steps
+
+
 def migrate_legacy_trace_file(base_dir: Optional[str]) -> bool:
     """Split legacy execution_trace.jsonl into daily shards once."""
     root = resolve_base_dir(base_dir)

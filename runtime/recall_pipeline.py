@@ -107,6 +107,13 @@ class RecallPipeline:
             values_context = rt.values_governance.format_context_block(limit=2)
             identity_anchor = rt.narrative.generate_identity_anchor()
             self_block = rt.self_model.to_prompt_block()
+            from core.personality.narrative.recent_context import load_recent_narrative_prompt_block
+
+            recent_narrative_block = load_recent_narrative_prompt_block(
+                str(getattr(rt, "base_dir", "") or ""),
+                since_hours=24.0,
+                limit=12,
+            )
             state_block = (
                 f"【Working Self】\n"
                 f"• goal_focus={rt.working_self.goal_focus} "
@@ -114,13 +121,15 @@ class RecallPipeline:
                 f"prediction_error={rt.working_self.prediction_error:.2f}"
             )
             identity_block = (
-                f"【Identity Context】\n"
+                f"【Identity Context — long-term narrative self】\n"
                 f"• {rt.narrative.get_current_narrative_summary()}"
             )
+            recent_section = f"{recent_narrative_block}\n\n" if recent_narrative_block else ""
             full = (
                 f"{identity_anchor}\n\n{self_block}\n\n{state_block}\n\n"
                 f"{emotion_context}\n\n{intent_context}\n\n{reflective_context}\n\n"
                 f"{values_context}\n\n"
+                f"{recent_section}"
                 f"{identity_block}\n\n{context}"
             )
 
@@ -144,6 +153,8 @@ class RecallPipeline:
                 for r in recall_results[:5]
             ],
             "context_chars": len(full),
+            "recent_narrative_chars": len(recent_narrative_block),
+            "recent_narrative_present": bool(recent_narrative_block),
         }
         get_metrics().set_gauge("recall.context_chars", float(len(full)))
         return full
