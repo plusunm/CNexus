@@ -21,6 +21,7 @@ from core.governance.gtbs.write_intent import (
 )
 from core.governance.gtbs.types import GovernanceProposal, JustificationSource, OperationType, StateDelta
 from core.runtime.trace_context import get_trace_id, trace_scope
+from core.runtime.trace_id import is_canonical_trace_id
 from core.spine.execution_context import note_execution_event, resolve_recall_trigger
 from core.spine.hooks.mutation import emit_capture_mutation
 from core.spine.integration import register_spine_writer
@@ -40,7 +41,7 @@ class TestAutoTrace(unittest.TestCase):
 
         trace_context._current_trace_id.set(None)
         warn_direct_runtime_access("recall")
-        self.assertTrue(get_trace_id() and get_trace_id().startswith("trace-direct-recall-"))
+        self.assertTrue(get_trace_id() and is_canonical_trace_id(get_trace_id()))
 
 
 class TestWriteFunnelTriggeredBy(unittest.TestCase):
@@ -121,14 +122,15 @@ class TestCaptureMutationHook(unittest.TestCase):
         writer = SpineWriter(SpineEventLog(tmp.name))
         register_spine_writer(writer)
 
-        with trace_scope("trace-cap"):
-            note_execution_event("recall", "recall-x")
-            emit_capture_mutation(
-                memory_id="m1",
-                role="user",
-                layer="episodic",
-                importance=0.5,
-            )
+        with unittest.mock.patch.dict(os.environ, {"KERNEL_ENFORCE_MODE": "0"}, clear=False):
+            with trace_scope("trace-cap"):
+                note_execution_event("recall", "recall-x")
+                emit_capture_mutation(
+                    memory_id="m1",
+                    role="user",
+                    layer="episodic",
+                    importance=0.5,
+                )
 
         rows = writer._log.read_all()
         self.assertEqual(len(rows), 1)

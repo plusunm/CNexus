@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from typing import Any, Iterator, Optional
+from typing import Iterator, Optional
+
+from core.runtime.trace_id import coerce_trace_id, generate_trace_id
 
 _current_trace_id: ContextVar[Optional[str]] = ContextVar("cnexus_trace_id", default=None)
 
 
 def start_trace(trace_id: Optional[str] = None) -> str:
-    tid = (trace_id or "").strip() or f"trace-{uuid.uuid4().hex[:12]}"
+    tid = coerce_trace_id(trace_id)
     _current_trace_id.set(tid)
     return tid
 
@@ -27,11 +28,16 @@ def require_trace_id() -> str:
     return tid
 
 
+def reset_trace_context() -> None:
+    """Clear ambient trace binding (tests / request boundary cleanup)."""
+    _current_trace_id.set(None)
+
+
 @contextmanager
 def trace_scope(trace_id: Optional[str] = None) -> Iterator[str]:
     """Bind trace for dispatch subtree; nested scopes restore on exit."""
     incoming = (trace_id or "").strip() or None
-    tid = incoming or get_trace_id() or f"trace-{uuid.uuid4().hex[:12]}"
+    tid = incoming or get_trace_id() or generate_trace_id()
     token: Token = _current_trace_id.set(tid)
     try:
         yield tid

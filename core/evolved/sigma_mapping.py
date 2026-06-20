@@ -20,7 +20,10 @@ def _iso(dt: datetime) -> str:
 
 
 def derive_timestamps_from_trace(trace_id: str, *, fallback: Optional[datetime] = None) -> Dict[str, str]:
-    """FACTORY_GAP: derive block_created_at from trace_id when absent."""
+    """FACTORY_GAP: derive block_created_at from trace_id when absent.
+
+    Accepts canonical `t-*`, legacy `trace-*`, and embedded unix ms (e.g. trace-evolved-1700000000000).
+    """
     now = fallback or datetime.now(timezone.utc)
     created = now
     match = _TRACE_TS_RE.search(trace_id or "")

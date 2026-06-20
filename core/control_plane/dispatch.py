@@ -1,8 +1,35 @@
 """Thin entry dispatcher — routes HTTP/WS write paths through entry_registry checks."""
 
-
-
 from __future__ import annotations
+
+from enum import Enum
+
+
+class CaptureMode(Enum):
+    UNSPECIFIED = "unspecified"
+    CHAT = "chat"
+    INGEST = "ingest"
+    SYSTEM = "system"
+    RAW = "raw"
+
+
+# Source → CaptureMode mapping (single source of truth)
+SOURCE_MODE_MAP = {
+    "chat": CaptureMode.CHAT,
+    "ingest": CaptureMode.INGEST,
+    "system": CaptureMode.SYSTEM,
+    "import": CaptureMode.INGEST,
+    "api": CaptureMode.CHAT,
+    "replay": CaptureMode.RAW,
+    "agent": CaptureMode.SYSTEM,
+}
+
+
+def resolve_capture_mode(source: str) -> CaptureMode:
+    mode = SOURCE_MODE_MAP.get(source)
+    if mode is None:
+        raise RuntimeError(f"Unknown capture source: {source}")
+    return mode
 
 
 
@@ -33,6 +60,7 @@ from core.control_plane.registry import (
 from core.control_plane.types import DispatchContext, RouteKind, build_dispatch_context
 
 from core.runtime.trace_context import trace_scope
+from core.runtime.trace_id import generate_trace_id
 
 
 
@@ -85,8 +113,12 @@ class AuthorityDispatcher:
     def dispatch(self, ctx: DispatchContext) -> Any:
 
         seed = ctx.trace_id or ctx.payload.get("trace_id")
+        if isinstance(seed, str) and seed.strip():
+            scope_seed = seed.strip()
+        else:
+            scope_seed = generate_trace_id()
 
-        with trace_scope(seed if isinstance(seed, str) else None) as active_trace:
+        with trace_scope(scope_seed) as active_trace:
 
             ctx.trace_id = active_trace
 
@@ -306,6 +338,13 @@ class AuthorityDispatcher:
 
         if kind == RouteKind.MEMORY_WRITE:
 
+            meta = p.get("meta", {})
+            source = meta.get("source", "api")
+            mode = resolve_capture_mode(source)
+            meta = dict(meta)
+            meta["source"] = source
+            meta["mode"] = mode.value
+
             return self.runtime.capture(
 
                 p["role"],
@@ -316,7 +355,7 @@ class AuthorityDispatcher:
 
                 importance=p.get("importance", 0.5),
 
-                **p.get("meta", {}),
+                **meta,
 
             )
 

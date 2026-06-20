@@ -22,6 +22,7 @@ from core.prompt.minimal_builder_v1 import (
     extract_user_text,
     prompt_minimal_v1_enabled,
 )
+from core.runtime.trace_id import is_canonical_trace_id
 from core.runtime.compute_plans import chat_compute_plan
 from core.runtime.llm_fast_lane import ChatAPI, LLMFastLane
 
@@ -40,7 +41,7 @@ class TestPromptMinimalV1(unittest.TestCase):
         base = builder.build("hello")
         self.assertEqual(base["input"], "hello")
         self.assertEqual(base["mode"], "minimal_v1")
-        self.assertTrue(str(base["trace_id"]).startswith("trace-"))
+        self.assertTrue(is_canonical_trace_id(str(base["trace_id"])))
 
     def test_extract_user_text(self):
         self.assertEqual(extract_user_text({"input": "x"}), "x")

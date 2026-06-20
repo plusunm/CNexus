@@ -15,21 +15,26 @@ from core.control_plane.types import RouteKind
 from core.governance.gtbs.adapters.recall_adapter import emit_recall_side_effect_intent
 from core.governance.gtbs.transaction_log import GTBSTransactionLog
 from core.governance.gtbs.write_intent_bus import WriteIntentBus, write_intent_provenance_scope
-from core.runtime.trace_context import get_trace_id, trace_scope
+from core.runtime.trace_context import get_trace_id, reset_trace_context, trace_scope
+from core.runtime.trace_id import is_canonical_trace_id, is_legacy_trace_id
 from core.spine.integration import register_spine_writer
 from core.spine.storage import SpineEventLog
 from core.spine.writer import SpineWriter
 
 
 class TestTraceContext(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_trace_context()
+
     def test_trace_scope_generates_id(self):
         with trace_scope() as tid:
-            self.assertTrue(tid.startswith("trace-"))
+            self.assertTrue(is_canonical_trace_id(tid))
             self.assertEqual(get_trace_id(), tid)
 
     def test_trace_scope_preserves_explicit(self):
         with trace_scope("trace-explicit") as tid:
             self.assertEqual(tid, "trace-explicit")
+            self.assertTrue(is_legacy_trace_id(tid))
             self.assertEqual(get_trace_id(), "trace-explicit")
 
     def test_dispatch_injects_trace_id_on_dict_result(self):
@@ -39,7 +44,7 @@ class TestTraceContext(unittest.TestCase):
         result = disp.chat_send(message="hello")
         self.assertIsInstance(result, dict)
         self.assertIn("trace_id", result)
-        self.assertTrue(str(result["trace_id"]).startswith("trace-"))
+        self.assertTrue(is_canonical_trace_id(str(result["trace_id"])))
 
     def test_chat_dispatch_projects_control_to_spine(self):
         tmp = tempfile.TemporaryDirectory()

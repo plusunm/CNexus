@@ -81,7 +81,13 @@ def project_gtbs_row(row: dict[str, Any], *, seq: int = 0) -> Optional[SpineEven
     kind = str(payload.get("write_intent_kind") or payload.get("source") or "write_intent")
     mutability = str(payload.get("mutability") or "explicit")
     tx_id = str(row.get("transaction_id") or "unknown")
-    trace_id = str(prov.get("trace_id") or f"trace-{tx_id[:12]}")
+    trace_raw = str(prov.get("trace_id") or "").strip()
+    if trace_raw:
+        trace_id = trace_raw
+    else:
+        from core.runtime.trace_id import generate_trace_id
+
+        trace_id = generate_trace_id()
     caller = str(prov.get("caller") or prov.get("channel") or "http")
     entry = str(prov.get("entry_registry") or "unknown")
     ts = _iso_ts(row)
