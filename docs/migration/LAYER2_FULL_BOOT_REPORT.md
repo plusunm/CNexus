@@ -7,10 +7,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Run ID** | `05efa6da546f` |
-| **Timestamp (UTC)** | `2026-06-20 00:28:30 UTC` |
-| **Sandbox** | `C:\ProgramData\cnexus\layer2-boot\05efa6da546f` |
-| **API Base** | `http://127.0.0.1:59257` |
+| **Run ID** | `2f573ebeaf9c` |
+| **Timestamp (UTC)** | `2026-06-20 00:29:21 UTC` |
+| **Sandbox** | `C:\ProgramData\cnexus\layer2-boot\2f573ebeaf9c` |
+| **API Base** | `http://127.0.0.1:64090` |
 | **Overall** | **PASS** |
 
 ---
@@ -22,12 +22,12 @@
 | B1 | API Ready — `GET /v1/system/ready` → `operational_ready` | ✅ PASS | HTTP 200; operational_ready=True |
 | B2 | AST Compliance — `assert_observability_compliance()` | ✅ PASS | assert_observability_compliance() clean |
 | B3 | Governance Probe — `GET /governance/state` → `overall_stability_score` | ✅ PASS | overall_stability_score=0.9560000000000001 |
-| B4 | Observe Probe — memory stats + cross-shard `total_lines` | ✅ PASS | memory/stats HTTP 200 total=1; linkage trace total_lines=2 shard_count=1; memory_dir=C:\ProgramData\cnexus\layer2-boot\05efa6da546f |
-| B5 | Interact Smoke — `POST /v1/interact` (mock LLM) | ✅ PASS | governance_pass=True trace_id=t-df5d53b718ce41b4 |
-| B6 | Canonical Trace — `t-{16hex}` in Σ.T daily shard | ✅ PASS | shard=2026-06-20.jsonl canonical_trace_ids=9 sample=['t-c055a57054c9487a'] |
+| B4 | Observe Probe — memory stats + cross-shard `total_lines` | ✅ PASS | memory/stats HTTP 200 total=1; linkage trace total_lines=2 shard_count=1; memory_dir=C:\ProgramData\cnexus\layer2-boot\2f573ebeaf9c |
+| B5 | Interact Smoke — `POST /v1/interact` (mock LLM) | ✅ PASS | governance_pass=True trace_id=t-223baa4b22e24373 |
+| B6 | Canonical Trace — `t-{16hex}` in Σ.T daily shard | ✅ PASS | shard=2026-06-20.jsonl canonical_trace_ids=9 sample=['t-29f47b84156e4519'] |
 | B7 | SelfModel Domain Isolation — partial `self_model_*.json` mtime | ✅ PASS | initial 3-way domain split materialized (no unified_self_model.json) |
 | B8 | Σ.T Persistence — `interaction_step` rows in today shard | ✅ PASS | interaction_step_rows=5 shard=2026-06-20.jsonl |
-| B9 | Automated Summary — B1–B8 all green | ⬜ SKIP | not run |
+| B9 | Automated Summary — B1–B8 all green | ✅ PASS | all automated gates green |
 
 ---
 
@@ -54,7 +54,7 @@
 ### Trace store (cross-shard)
 
 ```json
-{"memory_total": 1, "trace_event": {"path": "C:\\ProgramData\\cnexus\\layer2-boot\\05efa6da546f\\traces\\2026-06-20.jsonl", "trace_store_path": "C:\\ProgramData\\cnexus\\layer2-boot\\05efa6da546f\\traces", "shard_count": 1, "exists": true, "readable": true, "total_lines": 2, "trace_total_entries": 2, "l3_tick_count": 0, "trace_loop_iterations": 0, "interaction_step_count": 0, "last_tick_ms": null, "trace_last_loop_mono_ms": null, "last_event_type": "kernel_execution", "trace_last_event_type": "kernel_execution", "flow_active": false, "trace_flow_alive": false, "no_flow": true, "trace_flow_stopped": true, "partial_flow": false, "backlog_hint": 0}}
+{"memory_total": 1, "trace_event": {"path": "C:\\ProgramData\\cnexus\\layer2-boot\\2f573ebeaf9c\\traces\\2026-06-20.jsonl", "trace_store_path": "C:\\ProgramData\\cnexus\\layer2-boot\\2f573ebeaf9c\\traces", "shard_count": 1, "exists": true, "readable": true, "total_lines": 2, "trace_total_entries": 2, "l3_tick_count": 0, "trace_loop_iterations": 0, "interaction_step_count": 0, "last_tick_ms": null, "trace_last_loop_mono_ms": null, "last_event_type": "kernel_execution", "trace_last_event_type": "kernel_execution", "flow_active": false, "trace_flow_alive": false, "no_flow": true, "trace_flow_stopped": true, "partial_flow": false, "backlog_hint": 0}}
 ```
 
 ### Interact response (truncated)
@@ -66,9 +66,9 @@
 ### SelfModel domain mtimes
 
 ```
-self_model_cognize.json: before=None after=1781915310.4032645
-self_model_decide.json: before=None after=1781915309.9715402
-self_model_store_meta.json: before=None after=1781915309.9730978
+self_model_cognize.json: before=None after=1781915361.5582304
+self_model_decide.json: before=None after=1781915361.068452
+self_model_store_meta.json: before=None after=1781915361.0704548
 ```
 
 ---
