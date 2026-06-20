@@ -157,11 +157,11 @@ def collect_cognition_section(*, boot: Optional[Dict[str, Any]] = None) -> Dict[
 
 
 def collect_event_section(*, base_dir: Optional[str] = None, include_trace: bool = False) -> Dict[str, Any]:
-    if not include_trace or isolation_enabled():
+    if not include_trace:
         return {
             "path": None,
             "skipped": True,
-            "reason": "control_plane_isolation",
+            "reason": "trace_probe_disabled",
             "flow_active": None,
             "no_flow": False,
             "l3_tick_count": None,

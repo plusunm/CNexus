@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
@@ -66,6 +67,11 @@ def get_legacy_adapter() -> LegacyDispatchAdapter:
     if _legacy_adapter_provider is not None:
         return _legacy_adapter_provider()
     return LegacyDispatchAdapter.from_runtime(_resolve_runtime())
+
+
+def _observe_read(kind: str, **payload: Any) -> Any:
+    """Kernel observe route — replaces direct runtime.get_current_state / memory_stats."""
+    return get_legacy_adapter().observe_read(kind, **payload)
 
 
 class InteractRequest(BaseModel):
@@ -348,6 +354,7 @@ def _map_interact_response(
             "reason": result.get("reason"),
             "user_id": req.user_id,
             "session_id": req.session_id,
+            "trace_id": result.get("trace_id"),
         },
     )
 
@@ -371,9 +378,16 @@ async def v1_interact(
         allow_proactive = False
     strict_error = bool(options.get("strict_governance_error", False))
 
+    import os
+
+    mock_llm = os.environ.get("MOCK_LLM_RESPONSE", "0").strip().lower() in ("1", "true", "yes", "on")
+    assistant_output = options.get("assistant_output") or meta.get("assistant_output")
+    if mock_llm and not assistant_output:
+        assistant_output = f"L2-3 deterministic mock response ({uuid.uuid4().hex[:8]})"
+
     llm_client = None
     llm_profile = None
-    if _llm_provider and _registry_provider:
+    if not assistant_output and _llm_provider and _registry_provider:
         registry = _registry_provider()
         llm_profile = registry.get_default()
         if llm_profile is None or not llm_profile.enabled:
@@ -392,26 +406,40 @@ async def v1_interact(
                 llm_client=llm_client,
                 llm_profile=llm_profile,
                 allow_proactive=allow_proactive,
+                assistant_output=assistant_output if isinstance(assistant_output, str) else None,
             )
         )
     except EventLoopOffloadTimeout as exc:
-        raise HTTPException(status_code=504, detail={"error": "runtime_timeout", "detail": str(exc)}) from exc
+        return JSONResponse(
+            status_code=200,
+            content={
+                "type": "error",
+                "error": "runtime_timeout",
+                "message": "请求处理超时，请稍后重试",
+                "retry": True,
+                "retry_after": 10,
+                "detail": str(exc),
+            }
+        )
     except ControlDecisionRejected as exc:
         raise HTTPException(
             status_code=403,
             detail={"error": "control_plane_rejected", "reason": exc.decision.reason},
         ) from exc
     except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail={
+        logger.exception("v1 interact error")
+        return JSONResponse(
+            status_code=200,
+            content={
+                "type": "error",
                 "error": "runtime_error",
+                "message": "服务器内部错误，请重试",
                 "code": "INTERNAL_ERROR",
                 "safe_response": "抱歉，处理请求时出现错误。",
                 "audit_id": f"audit_{uuid.uuid4().hex[:8]}",
-                "detail": str(exc),
-            },
-        ) from exc
+                "detail": str(exc)[:300],
+            }
+        )
 
     response = _map_interact_response(result, req, runtime)
     if not response.governance_pass:
@@ -436,8 +464,10 @@ async def v1_interact(
 
 
 def _build_status_v11(runtime: BrainMemoryRuntime) -> StatusV11Response:
+    from core.kernel.observe.read_adapter import observe_governance_state, observe_memory_stats
+
     full_status = runtime.get_full_status()
-    current = runtime.get_current_state()
+    current = observe_governance_state(_observe_read)
     block_stats = full_status.get("layers", {}).get("memory_blocks") or runtime.memory_manager.block_stats()
     by_label = dict(block_stats.get("by_label") or {})
     store_stats = {}
@@ -451,10 +481,12 @@ def _build_status_v11(runtime: BrainMemoryRuntime) -> StatusV11Response:
 
     episodic_counts = store_stats.get("episodic_counts") or {}
     active_layers = len([count for count in episodic_counts.values() if count > 0]) or 8
-    mem_stats = runtime.memory_stats() if hasattr(runtime, "memory_stats") else {}
+    mem_stats = observe_memory_stats(_observe_read)
     total_events = mem_stats.get("total_memories") or mem_stats.get("episodic_count") or sum(
         episodic_counts.values()
     )
+    if not total_events:
+        total_events = mem_stats.get("total") or sum(episodic_counts.values())
 
     gov_layer = full_status.get("layers", {}).get("governance") or {}
     stability_metrics = current.get("stability_metrics") or {}
@@ -499,7 +531,9 @@ async def v1_state(
     try:
         def _read():
             full_status = runtime.get_full_status()
-            current = runtime.get_current_state()
+            current = _observe_read("governance_state")
+            if not isinstance(current, dict):
+                current = {}
             blocks_summary = full_status.get("layers", {}).get("memory_blocks", {})
             if not blocks_summary:
                 blocks_summary = runtime.memory_manager.block_stats()
@@ -989,7 +1023,9 @@ async def v1_mind_overview(runtime: BrainMemoryRuntime = Depends(get_runtime)):
             },
         )
 
-    state = await asyncio.to_thread(runtime.get_current_state)
+    state = await asyncio.to_thread(_observe_read, "governance_state")
+    if not isinstance(state, dict):
+        state = {}
     overview = state.get("mind_overview")
     if overview is None:
         from core.observability.mind_overview import build_mind_overview

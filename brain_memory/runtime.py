@@ -41,7 +41,7 @@ from core.personality.reflective.reflective_memory import ReflectionRecord
 from core.personality.reflective.reflective_store import ReflectiveMemoryStore
 from core.self_model import SelfModelStore
 from core.validation.validation_orchestrator import StabilityValidationOrchestrator
-from memory.filter import CaptureFilter
+from memory.filter import CaptureFilter, CaptureMode
 from memory.lifecycle import MemoryLifecycleManager, MemoryManagementConfig
 from memory.manager import MemoryManager
 from memory.runtime_guard import runtime_write_context
@@ -89,6 +89,60 @@ class BrainMemoryRuntime:
             base_dir=base_dir,
             project_root=project_root,
         )
+
+    def shutdown(self, timeout: float = 15.0) -> bool:
+        """Graceful or forced component teardown (no-op safe for components without .close()).
+
+        Returns True if the primary teardown path succeeded.
+        """
+        logger.info("shutdown() called on BrainMemoryRuntime (timeout=%.1f)", timeout)
+        success = True
+
+        # 1) MemoryManager — flush pending writes if supported
+        mgr = getattr(self, "memory_manager", None)
+        if mgr is not None:
+            try:
+                flush = getattr(mgr, "flush_pending", None)
+                if flush is not None:
+                    flush(timeout=timeout)
+            except Exception as exc:
+                logger.warning("memory_manager teardown: %s", exc)
+                success = False
+
+        # 2) Storage — UnifiedStorageManager: no close() today
+        # 3) LLMClient — no close() today, let GC handle
+        # 4) EmbeddingService — no close() today
+        # 5) CGD / Governance engines
+        for slot in ("cdg", "_cdg_kernel", "governance_pipeline", "stability"):
+            comp = getattr(self, slot, None)
+            if comp is not None:
+                stop = getattr(comp, "stop", None)
+                if stop is not None:
+                    try:
+                        stop(timeout=timeout * 0.6)
+                    except Exception as exc:
+                        logger.warning("%s.stop: %s", slot, exc)
+
+        # 6) Scheduler / ExecutionPlane
+        for slot in ("_inference_scheduler", "_execution_plane", "_local_stack"):
+            comp = getattr(self, slot, None)
+            if comp is not None:
+                stop = getattr(comp, "stop", None)
+                if stop is not None:
+                    try:
+                        stop()
+                    except Exception as exc:
+                        logger.warning("%s.stop: %s", slot, exc)
+
+        logger.info("shutdown() completed (success=%s)", success)
+        return success
+
+    def __del__(self) -> None:
+        """Best-effort teardown on GC."""
+        try:
+            self.shutdown(timeout=3.0)
+        except Exception:
+            pass
 
     def __init__(
         self,
@@ -485,7 +539,23 @@ class BrainMemoryRuntime:
         **meta,
     ) -> Union[str, Dict[str, Any]]:
         with runtime_write_context():
-            rejected, reason = CaptureFilter.should_reject(role, content)
+            # Extract mode from meta (set by dispatch layer)
+            mode_value = meta.pop("mode", None)
+            if mode_value is not None:
+                if isinstance(mode_value, str):
+                    mode = CaptureMode(mode_value)
+                else:
+                    mode = mode_value
+            else:
+                # Internal calls (runtime self.capture) default to CHAT
+                mode = CaptureMode.CHAT
+            source = meta.pop("source", None)
+
+            # Mode consistency check (only when source is explicitly set)
+            if source is not None:
+                CaptureFilter.check_mode_consistency(source, mode)
+
+            rejected, reason = CaptureFilter.should_reject(role, content, mode=mode)
             if rejected:
                 return f"denied: {reason}"
 
@@ -1368,10 +1438,15 @@ class BrainMemoryRuntime:
         """Append-only interaction trace — never blocks the main loop."""
         try:
             from core.runtime.execution_trace import append_execution_trace
+            from core.runtime.trace_context import get_trace_id
 
+            row: Dict[str, Any] = {"type": "interaction_step", "step": step, **extra}
+            tid = get_trace_id()
+            if tid:
+                row["trace_id"] = tid
             append_execution_trace(
                 str(self.base_dir),
-                {"type": "interaction_step", "step": step, **extra},
+                row,
             )
         except Exception:
             logger.debug("interaction trace skipped for step=%s", step, exc_info=True)
