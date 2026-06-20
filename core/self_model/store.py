@@ -1,42 +1,45 @@
-"""Persistence for Unified SelfModel."""
+"""Persistence for Unified SelfModel — domain-split storage (X2)."""
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from core.self_model.domain_storage import (
+    DOMAIN_COGNIZE,
+    DOMAIN_DECIDE,
+    DOMAIN_STORE_META,
+    DomainStorageAdapter,
+    SelfModelDomain,
+)
 from core.self_model.self_model import SelfModel
 
 logger = logging.getLogger(__name__)
 
 
 class SelfModelStore:
-    """Persist unified self-model — single subjective source of truth."""
+    """Persist unified self-model — in-memory SSOT with split physical domains."""
 
     def __init__(self, base_dir: str):
-        self.path = Path(base_dir) / "unified_self_model.json"
-        self.legacy_path = Path(base_dir) / "subject_self_model.json"
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.base_dir = Path(base_dir)
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self._adapter = DomainStorageAdapter(self.base_dir)
+        # Legacy path references for diagnostics / migration audit.
+        self.path = self.base_dir / "unified_self_model.json"
+        self.legacy_path = self.base_dir / "subject_self_model.json"
         self.model = self._load()
 
     def _load(self) -> SelfModel:
-        for candidate in (self.path, self.legacy_path):
-            if not candidate.exists():
-                continue
-            try:
-                data = json.loads(candidate.read_text(encoding="utf-8"))
-                return SelfModel.from_dict(data)
-            except Exception as exc:
-                logger.warning("SelfModel load failed (%s): %s", candidate, exc)
-        return SelfModel()
+        return self._adapter.load()
 
     def save(self) -> None:
-        self.path.write_text(
-            json.dumps(self.model.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        """Full persist — all three domains (integrate / legacy callers)."""
+        self._adapter.save_all_domains(self.model)
+
+    def save_domain(self, domain: SelfModelDomain) -> None:
+        """Partial persist — single Runbook domain file only."""
+        self._adapter.save_domain(domain, self.model)
 
     def store_step_touch(self, *, block_updated_at: Optional[str] = None) -> Dict[str, Any]:
         """Runbook STORE_step writer — merges last_reconstruction with block_updated_at."""
@@ -69,3 +72,11 @@ class SelfModelStore:
         """Legacy alias."""
         self.integrate(experience, "", reflection=reflection)
         return self.model
+
+
+__all__ = [
+    "SelfModelStore",
+    "DOMAIN_COGNIZE",
+    "DOMAIN_DECIDE",
+    "DOMAIN_STORE_META",
+]

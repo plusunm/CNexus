@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from api.deps import get_runtime, peek_runtime
+from api.deps import get_dispatcher, get_runtime, peek_runtime
 from api.runtime_log import get_logs, runtime_log
 from core.cse.engine import CognitiveSynthesisEngine
 from core.observability.mind_overview import build_mind_overview
@@ -58,7 +58,9 @@ def _build_output(*, window: int, mode: str = "live") -> Dict[str, Any]:
     runtime = get_runtime()
     logs = get_logs(limit=window)
     traces = TraceStore().list_recent(limit=min(20, window // 10 or 5))
-    state = runtime.get_current_state()
+    state = get_dispatcher().observe_read("governance_state")
+    if not isinstance(state, dict):
+        state = {}
     overview = state.get("mind_overview") or build_mind_overview(runtime, state)
     output = _engine.synthesize_live(
         runtime=runtime,

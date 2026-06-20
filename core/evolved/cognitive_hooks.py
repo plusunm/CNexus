@@ -29,7 +29,7 @@ def apply_cognize_step(store: Any, *, user_input: str = "", response: str = "") 
     projection = dict(getattr(model, "future_projection", None) or {})
     projection["prediction_state"] = {"updated_at": now, "source": "COGNIZE_step"}
     _touch(model, "future_projection", projection)
-    store.save()
+    store.save_domain("cognize")
     return {"step": "COGNIZE", "updated_at": now}
 
 
@@ -47,7 +47,7 @@ def apply_decide_step(store: Any, *, intent_type: str = "") -> Dict[str, Any]:
     summary = str(getattr(model, "identity_summary", ""))
     if intent_type and intent_type not in summary:
         _touch(model, "identity_summary", f"{summary[:520]} [{intent_type}]".strip())
-    store.save()
+    store.save_domain("decide")
     return {"step": "DECIDE", "intent_type": intent_type, "updated_at": now}
 
 
@@ -56,7 +56,7 @@ def apply_store_selfmodel_step(store: Any, *, block_updated_at: Optional[str] = 
     model = store.model
     ts = block_updated_at or datetime.now(timezone.utc).isoformat()
     _touch(model, "last_reconstruction", ts)
-    store.save()
+    store.save_domain("store_meta")
     return {"step": "STORE", "last_reconstruction": ts}
 
 

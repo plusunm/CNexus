@@ -121,7 +121,7 @@ class LegacyDispatchAdapter:
                     "content": content,
                     "layer": layer,
                     "importance": importance,
-                    "meta": capture_meta,
+                    "meta": dict(capture_meta, source="api"),
                 },
                 caller=LEGACY_CALLER,
                 channel=channel,
@@ -180,3 +180,7 @@ class LegacyDispatchAdapter:
             trace_id=trace_id,
             channel=channel,
         )
+
+    def observe_read(self, kind: str, **payload: Any) -> Any:
+        """Read-only observe surface — routes through kernel OBSERVE intent."""
+        return self._dispatcher.observe_read(kind, **payload)

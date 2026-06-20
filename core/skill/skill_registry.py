@@ -14,7 +14,6 @@ class SkillSpec(BaseModel):
     description: str
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
-
 class SkillRegistry:
     """In-process skill registry with OpenAI tools schema export."""
 
@@ -99,9 +98,18 @@ class SkillRegistry:
             return json.dumps({"error": str(exc)}, ensure_ascii=False)
 
 
-def build_default_skill_registry(runtime: Any) -> SkillRegistry:
+def build_default_skill_registry(
+    runtime: Any,
+    *,
+    observe_read: Optional[Callable[..., Any]] = None,
+) -> SkillRegistry:
     """Register built-in CNexus skills against a runtime instance."""
     registry = SkillRegistry()
+
+    def _governance_snapshot() -> Any:
+        if observe_read is None:
+            raise RuntimeError("get_cognitive_state requires observe_read('governance_state')")
+        return observe_read("governance_state")
 
     registry.register_function(
         "search_long_term_memory",
@@ -117,7 +125,7 @@ def build_default_skill_registry(runtime: Any) -> SkillRegistry:
         "get_cognitive_state",
         "Return current CNexus governance / narrative / stability state snapshot.",
         {"type": "object", "properties": {}, "required": []},
-        lambda: runtime.get_current_state(),
+        lambda: _governance_snapshot(),
     )
     registry.register_function(
         "run_memory_maintenance",

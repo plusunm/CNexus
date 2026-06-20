@@ -1,8 +1,8 @@
-from typing import Any, Dict, List, Optional
+﻿from typing import Any, Dict, List, Optional
 
 import asyncio
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from api.deps import get_dispatcher, get_runtime
@@ -75,6 +75,44 @@ def _resolve_capture_cognize(runtime, requested: Optional[bool]) -> bool:
     return bool(runtime.config.get("capture_cognize_default", True))
 
 
+
+
+async def background_cognize(
+    memory_id: str,
+    content: str,
+    layer: str,
+    filename: str = "",
+    cognize_resolved: bool = True,
+) -> None:
+    """Background cognize — non-blocking, logs success/failure."""
+    try:
+        result = await asyncio.to_thread(
+            lambda: get_dispatcher().capture_cognition(
+                content=content,
+                layer=layer,
+                memory_id=memory_id,
+                trigger_governance=cognize_resolved,
+            )
+        )
+        traits = result.get("traits") if isinstance(result, dict) else None
+        if traits:
+            runtime_log(
+                "info", "background_cognize",
+                "Completed with traits",
+                memory_id=memory_id[:16],
+                traits=[str(t)[:30] for t in traits][:6],
+            )
+        else:
+            runtime_log("info", "background_cognize", "Completed", memory_id=memory_id[:16])
+    except Exception as exc:
+        runtime_log(
+            "error", "background_cognize",
+            "Failed",
+            memory_id=memory_id[:16],
+            filename=filename,
+            error=str(exc)[:200],
+        )
+
 @router.get("/embedding-status", response_model=EmbeddingStatusResponse)
 async def embedding_status():
     runtime = get_runtime()
@@ -90,6 +128,7 @@ async def capture(data: CaptureRequest):
         data.content,
         layer=data.layer,
         importance=data.importance,
+        meta={"source": "api"},
     )
     if isinstance(result, str) and result.startswith("denied"):
         runtime_log("warn", "capture", "Write gate denied", reason=result)
@@ -109,7 +148,7 @@ async def capture(data: CaptureRequest):
             runtime_log(
                 "warn",
                 "capture",
-                "Cognition side-effect failed — memory write kept",
+                "Cognition side-effect failed 鈥?memory write kept",
                 error=str(exc),
                 memory_id=memory_id[:16],
             )
@@ -127,6 +166,7 @@ async def capture(data: CaptureRequest):
 
 @router.post("/ingest", response_model=IngestResponse)
 async def ingest_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     layer: str = Form("episodic"),
     importance: float = Form(0.7),
@@ -137,62 +177,69 @@ async def ingest_document(
     raw = await file.read()
     filename = file.filename or "upload"
 
+    # 1. Parse document with timeout
     try:
-        parsed = parse_document_bytes(filename, raw)
-    except DocumentParseError as exc:
-        runtime_log("warn", "ingest", "Document parse failed", filename=filename, code=exc.code)
-        raise HTTPException(400, {"code": exc.code, "message": str(exc)}) from exc
+        parsed = await asyncio.wait_for(
+            asyncio.to_thread(parse_document_bytes, filename, raw),
+            timeout=30.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(408, detail={"code": "PARSE_TIMEOUT", "message": "文件解析超时"})
+    except Exception as exc:
+        code = getattr(exc, "code", "UNKNOWN")
+        runtime_log("warn", "ingest", "Document parse failed", filename=filename, code=code)
+        raise HTTPException(400, {"code": code, "message": str(exc)}) from exc
 
     text = str(parsed.get("text") or "").strip()
     if goal and goal.strip():
         text = f"[goal:{goal.strip()}] {text}"
 
     cognize_resolved = _resolve_capture_cognize(runtime, cognize)
-    result = await asyncio.to_thread(
-        get_dispatcher().memory_capture,
-        "user",
-        text,
-        layer=layer,
-        importance=importance,
-    )
+
+    # 2. memory_capture with timeout (must complete before returning)
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                lambda: get_dispatcher().memory_capture("user", text, layer=layer, importance=importance, meta={"source": "ingest"})
+            ),
+            timeout=60.0
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(504, detail={"code": "CAPTURE_TIMEOUT", "message": "记忆写入超时"})
+
     if isinstance(result, str) and result.startswith("denied"):
         runtime_log("warn", "ingest", "Write gate denied", reason=result, filename=filename)
         raise HTTPException(400, result)
 
     memory_id = str(result.get("episodic_id") if isinstance(result, dict) else result)
-    cognition = None
     keywords = list(parsed.get("keywords") or [])
+
+    # 3. cognize → BackgroundTasks (non-blocking, returns immediately)
+    cognition = None
     if cognize_resolved:
-        try:
-            cognition = get_dispatcher().capture_cognition(
-                content=text,
-                layer=layer,
-                memory_id=memory_id,
-                trigger_governance=cognize_resolved,
-            )
-            traits = cognition.get("traits") if isinstance(cognition, dict) else None
-            if traits:
-                keywords = list(dict.fromkeys([*keywords, *[str(t) for t in traits]]))[:12]
-        except Exception as exc:
-            runtime_log(
-                "warn",
-                "ingest",
-                "Cognition side-effect failed — memory write kept",
-                error=str(exc),
-                memory_id=memory_id[:16],
-                filename=filename,
-            )
+        background_tasks.add_task(
+            background_cognize,
+            memory_id=memory_id,
+            content=text,
+            layer=layer,
+            filename=filename,
+            cognize_resolved=True,
+        )
+        cognition = {
+            "status": "background",
+            "memory_id": memory_id,
+            "message": "文档已存入记忆，认知分析已在后台进行",
+        }
 
     preview = text[:240]
     runtime_log(
         "info",
         "ingest",
-        "Document ingested",
+        "Document ingested (cognize background)" if cognize_resolved else "Document ingested (cognize skipped)",
         filename=filename,
         format=parsed.get("format"),
         chars=parsed.get("char_count"),
         id=memory_id[:16],
-        cognize=cognize_resolved,
     )
     return IngestResponse(
         memory_id=memory_id,
@@ -216,10 +263,13 @@ async def recall(query: str):
 
 @router.get("/stats", response_model=MemoryStatsResponse)
 async def memory_stats():
-    from api.deps import get_runtime
+    from core.kernel.observe.read_adapter import observe_memory_stats
     from core.runtime.event_loop_offload import offload_sync
 
-    stats = await offload_sync(lambda: get_runtime().memory_stats())
+    stats = await offload_sync(
+        lambda: observe_memory_stats(get_dispatcher().observe_read),
+        timeout_s=15.0,
+    )
     runtime_log("info", "memory_mgmt", "Stats collected", total=stats.get("total", 0))
     return MemoryStatsResponse(**stats)
 

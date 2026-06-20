@@ -117,6 +117,7 @@ class KernelFinalVerificationProtocol:
         self._scan_legacy_artifacts()
         self._scan_ui_projection()
         self._scan_record_completeness()
+        self._scan_observe_compliance_ast()
         dimensions = self._score_dimensions()
         closure = sum(d.score * DIMENSION_WEIGHTS[d.dimension] for d in dimensions)
         blockers = sum(1 for f in self.findings if f.severity == Severity.BLOCKER)
@@ -491,6 +492,42 @@ class KernelFinalVerificationProtocol:
                 Severity.WARN,
                 "ExecutionKernel may lack durable record retrieval",
                 path=_rel(kernel_py, self.root),
+            )
+
+    def _scan_observe_compliance_ast(self) -> None:
+        from core.kernel.verify.compliance import (
+            OBSERVE_LEAK_BASELINE,
+            list_baseline_observe_leaks,
+            scan_observe_leaks,
+        )
+
+        for hit in list_baseline_observe_leaks(self.root):
+            self._add(
+                f"observe-leak-baseline-{Path(hit.path).stem}-{hit.lineno}",
+                Dimension.KERNEL_ENTRY,
+                Severity.WARN,
+                f"Baseline observe leak (grandfathered): get_runtime().{hit.method}()",
+                path=hit.path,
+                evidence=hit.evidence,
+            )
+
+        for hit in scan_observe_leaks(self.root, include_baseline=False):
+            self._add(
+                f"observe-leak-{Path(hit.path).stem}-{hit.lineno}",
+                Dimension.KERNEL_ENTRY,
+                Severity.BLOCKER,
+                f"Observability compliance: forbidden get_runtime().{hit.method}() outside core/kernel/",
+                path=hit.path,
+                evidence=hit.evidence,
+            )
+
+        # Document baseline count for audit trail.
+        if OBSERVE_LEAK_BASELINE:
+            self._add(
+                "observe-leak-baseline-count",
+                Dimension.KERNEL_ENTRY,
+                Severity.INFO,
+                f"Observe leak baseline files frozen: {len(OBSERVE_LEAK_BASELINE)}",
             )
 
     def _score_dimensions(self) -> list[DimensionScore]:

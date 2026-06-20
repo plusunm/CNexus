@@ -49,9 +49,7 @@ class AttractorModule:
         if memory is None:
             return 0.5
         try:
-            if hasattr(memory, "memory_stats"):
-                stats = memory.memory_stats()
-            elif hasattr(memory, "collect_stats"):
+            if hasattr(memory, "collect_stats"):
                 stats = memory.collect_stats()
             else:
                 return 0.5
