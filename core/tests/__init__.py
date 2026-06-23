@@ -1,1 +1,0 @@
-"""CNexus core test packages."""

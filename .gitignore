@@ -2,49 +2,46 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-.eggs/
 dist/
 build/
-*.egg
-.venv/
-venv/
-env/
+.pytest_cache/
+*.tmp
+*.py.new
+*.py.tmp
 
-# Runtime data
-memory/lancedb/
-memory/kuzu_db
-memory/kuzu_db/
-memory/kuzu_db.*
-memory/test_kuzu_db/
-config/models.local.json
-memory/reflective/
-logs/
-*.log
-
-# Node
+# Node (frontend source builds elsewhere)
 node_modules/
 .next/
 out/
-out.old.*/
-*.tsbuildinfo
-.cnexus-deps-stamp
 
-# Tauri / Rust
-**/src-tauri/target/
-**/cnexus-runtime-sidecar/target/
-target/
+# Personal runtime data — never commit user memory snapshots
+data/
+*.log
+gateway.log
+data/peers.json
 
-# Local temp / compare
-_tmp_cnexus1_compare/
-scripts/cache/
+# OS
+Thumbs.db
+.DS_Store
 
-# IDE / OS
+# IDE
 .idea/
 .vscode/
-.DS_Store
-Thumbs.db
+*.swp
 
-# Test artifacts
-.pytest_cache/
-.coverage
-htmlcov/
+# Local dev scratch (not part of the clean personal edition)
+_api_status.json
+_float_content.html
+_shell_content.html
+current_js.txt
+cnexus_next_css.txt
+new_float.html
+new_shell.html
+memory/
+
+# Legacy / dev-only (excluded from personal edition)
+app_ui.py
+app_ui_backup.py
+universal_gateway.py
+config/
+tools/

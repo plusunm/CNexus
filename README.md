@@ -1,197 +1,147 @@
-# CNexus
+# CNexus — Network Edition（网络版）
 
-**Observational Cognition Platform for Long-Lived AI Agents**  
-**Stability-First Continuity · Multi-Stream Semantic Inference**
+> **分布式认知节点：本地记忆 + P2P 互联 + 自组织网络栈**
 
-![CNexus Debugger — Event Spine and Control Layer Inspector](docs/images/cnexus-debugger-spine-inspector.png)
+CNexus **网络版** 是面向多节点协作的轻量认知运行时：单文件网关 `app_v2.py`、静态 UI、零重型框架依赖。每个节点在本地维护认知状态与审计日志，并通过 **DHT 发现、连通性管理、Gossip 同步、资产推送** 与其他节点组成去中心化认知网络。
 
-![CNexus Float — Memory panel and token observatory](docs/images/cnexus-float-memory-panel.png)
+> 本仓库为 **Network Edition（纯净网络版）** — 已移除旧版 Observational Cognition Platform 全栈（`brain-memory-ui/`、Docker 企业运行时、Tauri 安装包等）。完整平台版历史请见 Git 历史；日常开发请使用本网络版目录结构。
 
----
-
-CNexus is a cognitive runtime and observational cognition platform designed to give stateless LLM agents persistent identity, long-term memory, narrative continuity, and governed personality evolution — with a read-only L2 / L2.5 semantic stack over immutable observability streams.
-
-Unlike traditional memory systems that only store conversation history, CNexus focuses on a deeper problem:
-
-> How can an AI remain the same evolving entity across long-term interaction — while keeping cognition observable, interpretable, and non-actuating?
-
-The platform introduces a Stability-First architecture that combines:
-
-* Persistent Memory Infrastructure
-* Personality DNA
-* Narrative Self
-* Belief Governance
-* Drift Detection
-* Identity Anchoring
-* Constitutional Safety
-* GTBS Observability + L2 Semantic Alignment (v0.1–v0.3 + L2.5)
-
-CNexus separates:
-
-* reasoning → handled by foundation models
-* execution → handled by agent runtimes
-* continuity → handled by CNexus cognitive runtime
-* observational cognition → L2 / L2.5 interpretive layers (read-only)
-
-Its mission is not to make AI "smarter", but to make AI:
-
-* stable
-* continuous
-* governable
-* persistent over time
-* structurally observable
-
-The system is designed for:
-
-* long-lived AI agents
-* personal AI companions
-* autonomous runtimes
-* persistent NPCs
-* cognitive robotics
-* multi-session AI systems
-
-Core principle:
-
-> Stability over uncontrolled adaptation.
-
-CNexus represents a shift from:
-
-* stateless inference  
-  to  
-* persistent cognitive existence with observational field cognition.
-
-**Repository:** [github.com/plusunm/CNexus](https://github.com/plusunm/CNexus)
+**相关仓库：** [plusunm/CNexus2.0](https://github.com/plusunm/CNexus2.0)（个人版演进分支）
 
 ---
 
-## Core Architecture
+## 网络版能做什么？
 
-```text
-Foundation Model
-    ↓
-Agent Runtime
-    ↓
-CNexus Cognitive Runtime
-    ├── Layer 1 — Memory Infrastructure (MemoryBlockStore + LanceDB + Kuzu)
-    │       Core / Episodic / Attention hybrid blocks · priority recall
-    ├── Layer 2 — Cognitive Runtime (router, attention, context, state)
-    ├── Layer 3 — Personality Continuity (DNA, narrative, belief)
-    ├── Layer 3.5 — Reflective Continuity (trait reflection → narrative + belief loop)
-    ├── Layer 4 — Stability Governance (drift, anchoring, write gate)
-    ├── GTBS Observability (shadow / ecology / singularity streams)
-    └── L2 / L2.5 Semantic Stack (snapshot → temporal → fusion → attractor)
+### ① 自组织网络栈（L1 / L2 / L3）
+
+| 层级 | 模块 | 能力 |
+|------|------|------|
+| **L1** | `ConnectivityManager` + STUN | ICE 式路径选择、中继回退、跨 NAT 候选发现 |
+| **L2** | `DHTService` | Kademlia k-buckets、HTTP RPC（FIND_NODE / STORE） |
+| **L3** | `NetworkFirewall` + `GossipSync` | 信誉封禁、心跳自愈、审计增量同步 |
+| **资产层** | `AssetPeerSync` + 推送重试队列 | 签名资产跨节点传播、失败指数退避重试 |
+
+### ② 认知连续性与元认知
+
+| 能力 | 说明 |
+|------|------|
+| **StateReconstructor** | 快照 + 增量回放，节点重启后「唤醒」认知状态 |
+| **SelfReflectionEngine** | 审计日志模式分析 + 可选 LLM 元反思 |
+| **六步认知闭环** | OBSERVE → COGNIZE → DECIDE → SPEAK → STORE → REFLECT |
+| **REM 深度睡眠** | 空闲时剪枝噪声、压缩碎片记忆 |
+| **真多模态 CLIP** | 图像直接向量化（ONNX），非视觉描述中转 |
+
+### ③ 前端 · 网络拓扑工作台
+
+侧栏 **「网络拓扑」** 分区提供：
+
+- **Mission Control** — 节点状态、唤醒进度、拓扑总览
+- **连接管理** — DHT / 连通性状态、按 PeerID 建连、封禁恶意节点
+- **网络运维** — 日志回放、重索引、推送队列、元反思、REM 触发
+- **网络资产** — 资产摄入、语义检索（文本 / 图像）
+
+---
+
+## 快速启动
+
+**Windows**
+
+```bat
+start_cnexus.bat
 ```
 
----
-
-## Quick Start
-
-### Python Runtime (recommended entry)
+**手动**
 
 ```bash
 pip install -r requirements.txt
-# or: pip install .
-ollama pull nomic-embed-text   # optional; falls back to zero-vector if unavailable
+python app_v2.py
+# 浏览器 http://127.0.0.1:7864
 ```
 
-```python
-from brain_memory import create_runtime
+### 跨网 P2P 必备环境变量
 
-runtime = create_runtime(project_root=".")
-runtime.capture("user", "I want to build a stable long-lived AI agent", layer="goal")
-print(runtime.recall("What is my long-term goal?"))
-runtime.trait_based_reflection("I tend to confuse feelings with facts", ["subjectivity"])
-print(runtime.run_governance_cycle())
+| 变量 | 说明 | 默认 |
+|------|------|------|
+| `CNEXUS_BIND_HOST` | 监听地址（跨网设为 `0.0.0.0`） | `127.0.0.1` |
+| `CNEXUS_PUBLIC_URL` | 对外可达 URL（供其他节点回调） | — |
+| `CNEXUS_DHT_ENABLE` | 启用 DHT | `0` |
+| `CNEXUS_DHT_BOOTSTRAP` | 引导节点 URL（逗号分隔） | — |
+| `CNEXUS_CONNECTIVITY_ENABLE` | 启用连通性管理器 | `0` |
+| `CNEXUS_STUN_SERVERS` | STUN 服务器列表 | 公共 STUN |
+| `CNEXUS_RELAY_URL` | 中继回退 URL | — |
+| `CNEXUS_ASSET_PEER_PUSH` | 索引后自动推送资产 | `0` |
+| `CNEXUS_ASSET_PUSH_RETRY_ENABLE` | 推送失败重试队列 | `1` |
+| `CNEXUS_SNAPSHOT_INTERVAL` | 认知快照间隔（条） | `1000` |
+| `CNEXUS_CLIP_ENABLE` | 启用 CLIP 向量 | `0` |
+| `CNEXUS_CLIP_IMAGE_ONNX` | 图像 ONNX 模型路径 | — |
+| `CNEXUS_CLIP_TEXT_ONNX` | 文本 ONNX 模型路径 | — |
+
+---
+
+## 主要网络 API
+
+| 端点 | 说明 |
+|------|------|
+| `GET /api/connectivity/status` | 连通性状态与活跃路径 |
+| `POST /api/connectivity/connect` | 向 PeerID 发起建连 |
+| `GET /api/dht/status` | DHT 路由表与节点信息 |
+| `POST /api/dht/rpc` | Kademlia RPC |
+| `POST /api/network/firewall/ban` | 封禁恶意 Peer |
+| `GET /api/awakening/status` | 唤醒 / 快照回放状态 |
+| `POST /api/replay/run` | 审计日志增量回放 |
+| `POST /api/reflect/meta` | 元认知反思 |
+| `POST /api/asset/push` | 向可信节点推送资产 |
+| `GET /api/asset/push/queue` | 推送重试队列状态 |
+| `POST /api/asset/search/semantic` | 文本或 `image_base64` 语义检索 |
+
+完整对话与记忆 API 见 `app_v2.py` 启动日志。
+
+---
+
+## 项目结构（网络版）
+
+```
+CNexus/
+├── app_v2.py              # 统一 HTTP 网关（7864）
+├── start_cnexus.bat       # Windows 一键启动
+├── requirements.txt       # 可选依赖（pynacl、CLIP 等）
+├── src/
+│   ├── kernel/            # 六步认知 reducer
+│   ├── core/              # 审计、向量、身份、状态重建、元反思
+│   ├── network/           # DHT、连通性、防火墙、Gossip、资产同步
+│   └── api/               # 指标与 P2P 中间件
+├── ui/                    # 静态前端（含网络拓扑工作台）
+└── tests/                 # 网络栈与核心模块测试
 ```
 
-CLI:
+---
+
+## 双节点联调示例
+
+**节点 A（引导）**
 
 ```bash
-python -m brain_memory status --root .
-python -m brain_memory governance --root . --json
+set CNEXUS_BIND_HOST=0.0.0.0
+set CNEXUS_PUBLIC_URL=http://192.168.1.10:7864
+set CNEXUS_DHT_ENABLE=1
+python app_v2.py
 ```
 
-### Web UI (`brain-memory-ui`)
+**节点 B（加入）**
 
 ```bash
-# Terminal 1 — API (:8000)
-cd brain-memory-ui
-set PYTHONPATH=<project-root>          # Windows
-export PYTHONPATH=<project-root>       # Linux/macOS
-python -m api.main
-
-# Terminal 2 — Frontend (:3000)
-cd brain-memory-ui/frontend
-npm install && npm run dev
+set CNEXUS_BIND_HOST=0.0.0.0
+set CNEXUS_PUBLIC_URL=http://192.168.1.11:7864
+set CNEXUS_DHT_ENABLE=1
+set CNEXUS_DHT_BOOTSTRAP=http://192.168.1.10:7864
+set CNEXUS_CONNECTIVITY_ENABLE=1
+python app_v2.py
 ```
 
-Open http://localhost:3000 for dashboard, chat, memory browser, and model configuration.
-
-> Legacy single-server UI (`python scripts/run_ui.py` on :8080) is deprecated; use `brain-memory-ui` instead.
-
-### Documentation
-
-| Guide | Description |
-|-------|-------------|
-| [docs/QUICKSTART.md](docs/QUICKSTART.md) | **Daily use**, **dev integration**, and **deployment** (English) |
-| [docs/QUICKSTART.zh.md](docs/QUICKSTART.zh.md) | Same guides in Chinese |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layered cognitive architecture |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production deployment notes |
-
-One-shot Windows bootstrap: `powershell -ExecutionPolicy Bypass -File scripts/load_g1.ps1`
-
-Staging (GTBS + L2 reports): `powershell -ExecutionPolicy Bypass -File scripts/run_staging.ps1`
-
-Import Cursor chat history: `python scripts/import_chat_transcript.py <transcript.jsonl> --root .`
-
----
-
-## Layer 3.5 — Reflective Continuity
-
-The reflective pipeline closes the **Subject Continuity** loop:
-
-1. Detect traits from interaction content
-2. Generate inner thought + cultivation actions
-3. Persist to long-term memory and `ReflectiveMemoryStore`
-4. Update **Narrative Self** and **Belief Graph**
-5. Feed stability metrics back into governance
-
----
-
-## Vision
-
-Enable AI systems to maintain identity continuity, cognitive stability, consistent beliefs, coherent narrative self, and long-term relational memory — while still allowing slow, governed evolution and read-only structural inference over observability streams.
-
----
-
-## Keywords
-
-CNexus • Persistent Cognition • Identity Stability • Narrative Continuity • Belief Governance • Cognitive Runtime • Observational Cognition • GTBS • L2 Semantic Alignment
-
----
-
-## GTBS Snapshot Principles (L2 / L2.5 Freeze)
-
-> **This repository represents a purely observational cognition system.**
-
-It does **not** execute governance, mutation, or control logic through the L2 / L2.5 semantic stack.
-
-All L2 / L2.5 modules are **interpretive layers** over immutable observability streams:
-
-- L2 v0.1 — snapshot semantics  
-- L2 v0.2 — temporal semantics  
-- L2 v0.3 — fusion semantics  
-- L2.5 — latent attractor inference  
-
-**Do NOT** modify runtime behavior, governance logic, or execution paths when working with this snapshot layer.  
-This is a **structural freeze**, not a refactor.
-
-Snapshot documentation: [docs/snapshots/GTBS_SYSTEM_SNAPSHOT_v0.3.md](docs/snapshots/GTBS_SYSTEM_SNAPSHOT_v0.3.md)  
-Platform repository: [plusunm/CNexus](https://github.com/plusunm/CNexus)  
-Tag: `gtbs-snapshot-v0.3-l2.5`
+在 B 的 UI **网络拓扑 → 连接管理** 中查看 DHT 状态，或通过 `POST /api/connectivity/connect` 连接 A 的 PeerID。
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+MIT — free to use, modify, and extend.
